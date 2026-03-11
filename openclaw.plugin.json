@@ -1,0 +1,28 @@
+{
+  "id": "53aihub",
+  "channels": [
+    "53aihub"
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "botId": {
+        "type": "string",
+        "description": "AgentHub 智能体 ID (HashID)"
+      },
+      "secret": {
+        "type": "string",
+        "description": "AgentHub App Secret / Token"
+      },
+      "token": {
+        "type": "string",
+        "description": "AgentHub App Secret / Token (Alias)"
+      },
+      "websocketUrl": {
+        "type": "string",
+        "description": "AgentHub WebSocket 连接地址"
+      }
+    }
+  }
+}

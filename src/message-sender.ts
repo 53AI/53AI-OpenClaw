@@ -1,0 +1,124 @@
+import type { RuntimeEnv } from "openclaw/plugin-sdk";
+import type { WebSocket } from "ws";
+import type { AgentHubWsMessage, ResponseError } from "./interface.js";
+import { ErrorCode } from "./interface.js";
+
+interface SendReplyParams {
+  wsClient: WebSocket;
+  text: string;
+  toChatId: string;
+  replyToMsgId?: string;
+  runtime: RuntimeEnv;
+  finish: boolean;
+  streamId: string;
+  isError?: boolean;
+  errorCode?: ErrorCode | string;
+  errorDetails?: string;
+}
+
+export async function sendReply(params: SendReplyParams): Promise<void> {
+  const { wsClient, text, toChatId, replyToMsgId, runtime, finish, streamId, isError, errorCode, errorDetails } = params;
+
+  const reqId = replyToMsgId || streamId;
+
+  runtime.log?.(`[53aihub] sendReply START: reqId=${reqId}, finish=${finish}, isError=${isError}, textLen=${text?.length || 0}, wsReadyState=${wsClient.readyState}`);
+
+  if (wsClient.readyState !== 1) {
+    runtime.error?.(`[53aihub] WebSocket is not open (readyState=${wsClient.readyState}). Cannot send message to ${toChatId}`);
+    return;
+  }
+
+  if (isError) {
+    runtime.error?.(`[53aihub] sendReply ERROR: reqId=${reqId}, code=${errorCode}, text=${text?.substring(0, 100)}`);
+    
+    const errorInfo: ResponseError = {
+      code: errorCode || ErrorCode.INTERNAL_ERROR,
+      message: text || "Unknown error",
+      details: errorDetails,
+    };
+
+    const errorChunk = {
+      id: reqId,
+      object: "chat.completion.chunk",
+      created: Math.floor(Date.now() / 1000),
+      model: "openclaw-agent",
+      choices: [
+        {
+          index: 0,
+          delta: {
+            content: text,
+            role: "assistant",
+          },
+          finish_reason: "error",
+        },
+      ],
+      error: errorInfo,
+    };
+
+    const errMsg: AgentHubWsMessage = {
+      req_id: reqId,
+      action: "chat",
+      status: "error",
+      data: errorChunk,
+    };
+
+    const jsonStr = JSON.stringify(errMsg);
+    runtime.log?.(`[53aihub] sendReply ERROR SENDING: reqId=${reqId}, payloadLen=${jsonStr.length}`);
+    wsClient.send(jsonStr);
+    return;
+  }
+
+  const chunk = {
+    id: reqId,
+    object: "chat.completion.chunk",
+    created: Math.floor(Date.now() / 1000),
+    model: "openclaw-agent",
+    choices: [
+      {
+        index: 0,
+        delta: {
+          content: text,
+          role: "assistant",
+        },
+        finish_reason: finish ? "stop" : null,
+      },
+    ],
+  };
+
+  const payload: AgentHubWsMessage = {
+    req_id: reqId,
+    action: "chat",
+    status: finish ? "done" : "streaming",
+    data: chunk,
+  };
+
+  const jsonStr = JSON.stringify(payload);
+  runtime.log?.(`[53aihub] sendReply SENDING: reqId=${reqId}, status=${payload.status}, textLen=${text?.length || 0}, payloadLen=${jsonStr.length}, textPreview=${text?.substring(0, 50) || "(empty)"}`);
+
+  try {
+    wsClient.send(jsonStr);
+    runtime.log?.(`[53aihub] sendReply SENT: reqId=${reqId}, status=${payload.status}`);
+  } catch (error) {
+    runtime.error?.(`[53aihub] sendReply FAILED: reqId=${reqId}, error=${String(error)}`);
+    throw error;
+  }
+}
+
+export async function sendDirectMessage(wsClient: WebSocket, to: string, content: string, runtime?: RuntimeEnv): Promise<void> {
+  if (wsClient.readyState !== 1) {
+    throw new Error(`[53aihub] WebSocket not connected`);
+  }
+
+  const payload: AgentHubWsMessage = {
+    req_id: `msg-${Date.now()}`,
+    action: "message",
+    status: "final",
+    data: {
+      toChatId: to,
+      text: content,
+    },
+  };
+
+  runtime?.log?.(`[53aihub] sendDirectMessage: to=${to}, contentLen=${content.length}`);
+  wsClient.send(JSON.stringify(payload));
+}

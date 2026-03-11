@@ -1,0 +1,161 @@
+import type { OpenClawConfig, RuntimeEnv } from "openclaw/plugin-sdk";
+import type { ResolvedAccount } from "./utils.js";
+
+// ============================================================================
+// WebSocket 消息类型
+// ============================================================================
+
+/**
+ * WebSocket 请求/响应消息基础格式
+ */
+export interface AgentHubWsMessage {
+  req_id: string;
+  action: "chat" | "message" | "ping" | "pong";
+  status: "streaming" | "done" | "error" | "final";
+  data: any;
+}
+
+/**
+ * 来自 Go 后端的消息
+ */
+export interface AgentHubIncomingMessage {
+  type: string;
+  msgId: string;
+  chatId: string;
+  userId: string;
+  text: string;
+  quoteContent?: string;
+  reqId?: string;
+}
+
+/**
+ * 发送给 Go 后端的消息
+ */
+export interface AgentHubOutgoingMessage {
+  type: "reply" | "message";
+  msgId?: string;
+  chatId: string;
+  text: string;
+  streamId?: string;
+  finish: boolean;
+  error?: ResponseError;
+}
+
+// ============================================================================
+// 配置和运行时类型
+// ============================================================================
+
+/**
+ * Monitor 配置选项
+ */
+export interface MonitorOptions {
+  account: ResolvedAccount;
+  config: OpenClawConfig;
+  runtime: RuntimeEnv;
+  abortSignal?: AbortSignal;
+}
+
+/**
+ * 消息状态
+ */
+export interface MessageState {
+  accumulatedText: string;
+  lastSentText: string;
+  streamId: string;
+}
+
+// ============================================================================
+// 错误处理
+// ============================================================================
+
+/**
+ * 错误码枚举
+ */
+export enum ErrorCode {
+  // 访问控制
+  ACCESS_DENIED = "ACCESS_DENIED",
+  PAIRING_REQUIRED = "PAIRING_REQUIRED",
+  
+  // AI 服务错误
+  RATE_LIMITED = "RATE_LIMITED",
+  INSUFFICIENT_QUOTA = "INSUFFICIENT_QUOTA",
+  MODEL_OVERLOADED = "MODEL_OVERLOADED",
+  MODEL_NOT_FOUND = "MODEL_NOT_FOUND",
+  
+  // 请求错误
+  INVALID_REQUEST = "INVALID_REQUEST",
+  CONTEXT_LENGTH_EXCEEDED = "CONTEXT_LENGTH_EXCEEDED",
+  CONTENT_FILTERED = "CONTENT_FILTERED",
+  
+  // 系统错误
+  TIMEOUT = "TIMEOUT",
+  INTERNAL_ERROR = "INTERNAL_ERROR",
+  SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE",
+  WEBSOCKET_ERROR = "WEBSOCKET_ERROR",
+}
+
+/**
+ * 响应错误
+ */
+export interface ResponseError {
+  code: ErrorCode | string;
+  message: string;
+  details?: string;
+}
+
+/**
+ * 响应数据
+ */
+export interface ResponseData {
+  content?: string;
+  error?: ResponseError;
+  choices?: Array<{
+    index: number;
+    delta: {
+      content?: string;
+      role?: string;
+    };
+    finish_reason?: string | null;
+  }>;
+}
+
+// ============================================================================
+// 错误码映射工具
+// ============================================================================
+
+/**
+ * 从错误消息中推断错误码
+ */
+export function inferErrorCode(errorText: string): ErrorCode {
+  const text = errorText.toLowerCase();
+  
+  if (text.includes("rate limit") || text.includes("429") || text.includes("too many requests")) {
+    return ErrorCode.RATE_LIMITED;
+  }
+  if (text.includes("quota") || text.includes("insufficient") || text.includes("balance") || text.includes("credit")) {
+    return ErrorCode.INSUFFICIENT_QUOTA;
+  }
+  if (text.includes("overload") || text.includes("capacity") || text.includes("temporarily unavailable")) {
+    return ErrorCode.MODEL_OVERLOADED;
+  }
+  if (text.includes("model not found") || text.includes("does not exist")) {
+    return ErrorCode.MODEL_NOT_FOUND;
+  }
+  if (text.includes("context length") || text.includes("token limit") || text.includes("max tokens")) {
+    return ErrorCode.CONTEXT_LENGTH_EXCEEDED;
+  }
+  if (text.includes("content filtered") || text.includes("content policy") || text.includes("safety")) {
+    return ErrorCode.CONTENT_FILTERED;
+  }
+  if (text.includes("timeout") || text.includes("timed out")) {
+    return ErrorCode.TIMEOUT;
+  }
+  if (text.includes("service unavailable") || text.includes("503")) {
+    return ErrorCode.SERVICE_UNAVAILABLE;
+  }
+  if (text.includes("invalid") || text.includes("bad request")) {
+    return ErrorCode.INVALID_REQUEST;
+  }
+  
+  return ErrorCode.INTERNAL_ERROR;
+}

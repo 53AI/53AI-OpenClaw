@@ -1,0 +1,61 @@
+{
+  "name": "53aihub",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "53aihub",
+    "openclaw",
+    "plugin"
+  ],
+  "author": "",
+  "license": "MIT",
+  "description": "OpenClaw 53aihub (AgentHub) channel plugin",
+  "openclaw": {
+    "extensions": [
+      "./dist/index.esm.js"
+    ],
+    "channel": {
+      "id": "53aihub",
+      "label": "53AIHub",
+      "selectionLabel": "53AIHub (AgentHub)",
+      "docsPath": "/channels/53aihub",
+      "docsLabel": "53aihub-openclaw-plugin",
+      "blurb": "53AIHub 智能机器人接入插件",
+      "order": 90,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "53aihub-openclaw-plugin",
+      "localPath": "extensions/53aihub-openclaw-plugin",
+      "defaultChoice": "local"
+    }
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/ws": "^8.5.10",
+    "openclaw": ">=2026.2.13",
+    "rollup": "^4.9.6",
+    "rollup-plugin-dts": "^6.1.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  }
+}
