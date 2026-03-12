@@ -1,6 +1,6 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk";
 import type { WebSocket } from "ws";
-import type { AgentHubWsMessage, ResponseError } from "./interface.js";
+import type { AgentHubWsMessage, ResponseError, AgentHubOutgoingMessage } from "./interface.js";
 import { ErrorCode } from "./interface.js";
 
 interface SendReplyParams {
@@ -120,5 +120,43 @@ export async function sendDirectMessage(wsClient: WebSocket, to: string, content
   };
 
   runtime?.log?.(`[53aihub] sendDirectMessage: to=${to}, contentLen=${content.length}`);
+  wsClient.send(JSON.stringify(payload));
+}
+
+export async function sendMediaMessage(
+  wsClient: WebSocket,
+  to: string,
+  media: {
+    type: "image" | "file";
+    url?: string;
+    base64?: string;
+    mimeType?: string;
+    filename?: string;
+  },
+  text?: string,
+  runtime?: RuntimeEnv
+): Promise<void> {
+  if (wsClient.readyState !== 1) {
+    throw new Error(`[53aihub] WebSocket not connected`);
+  }
+
+  const payload: AgentHubWsMessage = {
+    req_id: `msg-${Date.now()}`,
+    action: "message",
+    status: "final",
+    data: {
+      toChatId: to,
+      text: text || "",
+      media: {
+        type: media.type,
+        url: media.url,
+        base64: media.base64,
+        mimeType: media.mimeType,
+        filename: media.filename,
+      },
+    },
+  };
+
+  runtime?.log?.(`[53aihub] sendMediaMessage: to=${to}, type=${media.type}, url=${media.url ? "provided" : "none"}`);
   wsClient.send(JSON.stringify(payload));
 }

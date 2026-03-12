@@ -16,6 +16,42 @@ export interface AgentHubWsMessage {
 }
 
 /**
+ * 图片消息内容
+ */
+export interface ImageContent {
+  /** 图片 URL */
+  url?: string;
+  /** 图片 base64 数据 */
+  base64?: string;
+  /** 图片 MIME 类型 */
+  mimeType?: string;
+}
+
+/**
+ * 文件消息内容
+ */
+export interface FileContent {
+  /** 文件 URL */
+  url?: string;
+  /** 文件 base64 数据 */
+  base64?: string;
+  /** 文件名 */
+  filename?: string;
+  /** 文件 MIME 类型 */
+  mimeType?: string;
+}
+
+/**
+ * 消息内容项（支持多模态）
+ */
+export interface MessageContentItem {
+  type: "text" | "image" | "file";
+  text?: string;
+  image?: ImageContent;
+  file?: FileContent;
+}
+
+/**
  * 来自 Go 后端的消息
  */
 export interface AgentHubIncomingMessage {
@@ -24,6 +60,12 @@ export interface AgentHubIncomingMessage {
   chatId: string;
   userId: string;
   text: string;
+  /** 图片 URL 列表 */
+  imageUrls?: string[];
+  /** 文件 URL 列表 */
+  fileUrls?: string[];
+  /** 多模态消息内容项 */
+  contentItems?: MessageContentItem[];
   quoteContent?: string;
   reqId?: string;
 }
@@ -39,6 +81,14 @@ export interface AgentHubOutgoingMessage {
   streamId?: string;
   finish: boolean;
   error?: ResponseError;
+  /** 媒体附件 */
+  media?: {
+    type: "image" | "file";
+    url?: string;
+    base64?: string;
+    mimeType?: string;
+    filename?: string;
+  };
 }
 
 // ============================================================================

@@ -12,7 +12,7 @@ import { getWebSocket } from "./state-manager.js";
 import type { AIHubConfig, ResolvedAccount } from "./utils.js";
 import { resolveAccount } from "./utils.js";
 import { CHANNEL_ID, TEXT_CHUNK_LIMIT } from "./const.js";
-import { sendDirectMessage } from "./message-sender.js";
+import { sendDirectMessage, sendMediaMessage } from "./message-sender.js";
 import { aiHubOnboardingAdapter } from "./onboarding.js";
 
 const meta = {
@@ -44,7 +44,7 @@ export const aiHubPlugin: ChannelPlugin<ResolvedAccount> = {
     chatTypes: ["direct"],
     reactions: false,
     threads: false,
-    media: false,
+    media: true,
     nativeCommands: false,
     blockStreaming: true,
   },
@@ -162,9 +162,19 @@ export const aiHubPlugin: ChannelPlugin<ResolvedAccount> = {
       const channelPrefix = new RegExp(`^${CHANNEL_ID}:`, "i");
       const targetId = to.replace(channelPrefix, "");
 
-      const content = `[不支持发送媒体文件]\n${text ? `${text}\n${mediaUrl}` : (mediaUrl ?? "")}`;
-      await sendDirectMessage(wsClient, targetId, content);
+      const restAny = rest as Record<string, unknown>;
+      const mediaType = restAny.mediaType as string | undefined;
       
+      const isImage = mediaType?.startsWith("image/") || 
+        mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i);
+      const mediaCategory = isImage ? "image" : "file";
+
+      await sendMediaMessage(wsClient, targetId, {
+        type: mediaCategory,
+        url: mediaUrl,
+        mimeType: mediaType,
+      }, text);
+
       return { channel: CHANNEL_ID, messageId: `msg-${Date.now()}`, chatId: targetId };
     },
   },

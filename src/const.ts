@@ -27,6 +27,28 @@ export const TEXT_CHUNK_LIMIT = 4000;
 export const MESSAGE_PROCESS_TIMEOUT_MS = 120000;
 
 // ============================================================================
+// 媒体处理配置
+// ============================================================================
+
+/** 默认媒体大小上限（MB） */
+export const DEFAULT_MEDIA_MAX_MB = 20;
+
+/** 图片下载超时（毫秒） */
+export const IMAGE_DOWNLOAD_TIMEOUT_MS = 30000;
+
+/** 文件下载超时（毫秒） */
+export const FILE_DOWNLOAD_TIMEOUT_MS = 60000;
+
+/** 回复发送超时（毫秒） */
+export const REPLY_SEND_TIMEOUT_MS = 10000;
+
+/** 仅包含图片时的消息占位符 */
+export const MEDIA_IMAGE_PLACEHOLDER = "<media:image>";
+
+/** 仅包含文件时的消息占位符 */
+export const MEDIA_DOCUMENT_PLACEHOLDER = "<media:document>";
+
+// ============================================================================
 // 状态管理配置
 // ============================================================================
 

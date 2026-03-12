@@ -1,5 +1,5 @@
 {
-  "id": "53aihub",
+  "id": "53aihub-openclaw-plugin",
   "channels": [
     "53aihub"
   ],
@@ -22,6 +22,19 @@
       "websocketUrl": {
         "type": "string",
         "description": "AgentHub WebSocket 连接地址"
+      },
+      "accessPolicy": {
+        "type": "string",
+        "enum": ["open", "allowlist", "pairing"],
+        "default": "open",
+        "description": "访问策略: open=开放所有用户, allowlist=仅白名单用户, pairing=首次使用需审批"
+      },
+      "allowFrom": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "访问控制白名单，配合 accessPolicy=allowlist 或 pairing 使用"
       }
     }
   }

@@ -1,5 +1,5 @@
 {
-  "name": "53aihub",
+  "name": "@53ai/53aihub-openclaw-plugin",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.cjs.js",
@@ -13,12 +13,14 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "publish:release": "npm run prebuild && npm run build && npm publish"
   },
   "keywords": [
     "53aihub",
     "openclaw",
-    "plugin"
+    "53aihub-openclaw-plugin"
   ],
   "author": "",
   "license": "MIT",
@@ -38,9 +40,9 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "53aihub-openclaw-plugin",
+      "npmSpec": "@53ai/53aihub-openclaw-plugin",
       "localPath": "extensions/53aihub-openclaw-plugin",
-      "defaultChoice": "local"
+      "defaultChoice": "npm"
     }
   },
   "dependencies": {

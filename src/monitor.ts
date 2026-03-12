@@ -8,10 +8,12 @@ import {
   WS_HEARTBEAT_INTERVAL_MS,
   WS_MAX_RECONNECT_ATTEMPTS,
   WS_RECONNECT_BASE_DELAY_MS,
+  MEDIA_IMAGE_PLACEHOLDER,
+  MEDIA_DOCUMENT_PLACEHOLDER,
 } from "./const.js";
 import type { MonitorOptions, MessageState, AgentHubIncomingMessage, AgentHubWsMessage } from "./interface.js";
 import { ErrorCode, inferErrorCode } from "./interface.js";
-import { parseIncomingMessage } from "./message-parser.js";
+import { parseIncomingMessage, parseMessageContent } from "./message-parser.js";
 import { sendReply } from "./message-sender.js";
 import { checkAccessPolicy } from "./access-policy.js";
 import {
@@ -24,11 +26,13 @@ import {
   warmupReqIdStore,
 } from "./state-manager.js";
 import { withTimeout } from "./timeout.js";
+import { downloadAndSaveImages, downloadAndSaveFiles } from "./media-handler.js";
 
 function buildMessageContext(
   body: AgentHubIncomingMessage,
   account: ResolvedAccount,
   config: OpenClawConfig,
+  mediaList: Array<{ path: string; contentType?: string }>,
 ) {
   const core = getRuntime();
   const chatId = body.chatId || body.userId;
@@ -43,10 +47,18 @@ function buildMessageContext(
     },
   });
 
+  const hasImages = mediaList.some((m) => m.contentType?.startsWith("image/"));
+  const messageBody = body.text || (mediaList.length > 0 ? (hasImages ? MEDIA_IMAGE_PLACEHOLDER : MEDIA_DOCUMENT_PLACEHOLDER) : "");
+
+  const mediaPaths = mediaList.length > 0 ? mediaList.map((m) => m.path) : undefined;
+  const mediaTypes = mediaList.length > 0
+    ? (mediaList.map((m) => m.contentType).filter(Boolean) as string[])
+    : undefined;
+
   return core.channel.reply.finalizeInboundContext({
-    Body: body.text,
-    RawBody: body.text,
-    CommandBody: body.text,
+    Body: messageBody,
+    RawBody: messageBody,
+    CommandBody: messageBody,
     MessageSid: body.msgId,
     From: `${CHANNEL_ID}:${body.userId}`,
     To: `${CHANNEL_ID}:${chatId}`,
@@ -62,6 +74,11 @@ function buildMessageContext(
     OriginatingTo: `${CHANNEL_ID}:${chatId}`,
     CommandAuthorized: true,
     ReplyToBody: body.quoteContent,
+    MediaPath: mediaList[0]?.path,
+    MediaType: mediaList[0]?.contentType,
+    MediaPaths: mediaPaths,
+    MediaTypes: mediaTypes,
+    MediaUrls: mediaPaths,
   });
 }
 
@@ -81,18 +98,21 @@ async function processMessage(params: {
     runtime.log?.(`[53aihub] processMessage: parseIncomingMessage returned null`);
     return;
   }
-  if (!body.text?.trim()) {
-    runtime.log?.(`[53aihub] processMessage: empty text, body=${JSON.stringify(body)}`);
+
+  const parsed = parseMessageContent(body);
+  const hasMedia = parsed.imageUrls.length > 0 || parsed.fileUrls.length > 0;
+  
+  if (!parsed.textParts.join("\n").trim() && !hasMedia) {
+    runtime.log?.(`[53aihub] processMessage: empty message, body=${JSON.stringify(body)}`);
     return;
   }
 
   const chatId = body.chatId || body.userId;
-  runtime.log?.(`[53aihub] processMessage: chatId=${chatId}, msgId=${body.msgId}, text=${body.text.substring(0, 50)}...`);
+  runtime.log?.(`[53aihub] processMessage: chatId=${chatId}, msgId=${body.msgId}, text=${parsed.textParts.join(" ").substring(0, 50)}... images=${parsed.imageUrls.length} files=${parsed.fileUrls.length}`);
 
   const core = getRuntime();
   const streamId = `stream-${Date.now()}`;
 
-  // 访问策略检查
   const accessResult = await checkAccessPolicy({
     userId: body.userId,
     account,
@@ -118,7 +138,6 @@ async function processMessage(params: {
     return;
   }
 
-  // 消息状态管理
   setLastMsgIdForChat(chatId, body.msgId, account.accountId);
 
   const state: MessageState = { accumulatedText: "", lastSentText: "", streamId };
@@ -128,7 +147,25 @@ async function processMessage(params: {
     deleteMessageState(body.msgId);
   };
 
-  const ctxPayload = buildMessageContext(body, account, config);
+  const [imageMediaList, fileMediaList] = await Promise.all([
+    downloadAndSaveImages({
+      imageUrls: parsed.imageUrls,
+      account,
+      config,
+      runtime,
+      wsClient,
+    }),
+    downloadAndSaveFiles({
+      fileUrls: parsed.fileUrls,
+      account,
+      config,
+      runtime,
+      wsClient,
+    }),
+  ]);
+  const mediaList = [...imageMediaList, ...fileMediaList];
+
+  const ctxPayload = buildMessageContext(body, account, config, mediaList);
 
   let cleanedUp = false;
   const safeCleanup = () => {
@@ -235,7 +272,7 @@ async function processMessage(params: {
       });
     }
 
-safeCleanup();
+    safeCleanup();
   } catch (err) {
     runtime.error?.(`[53aihub] processMessage FAILED: ${String(err)}`);
     const errorText = String(err);
