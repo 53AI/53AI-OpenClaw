@@ -9,6 +9,7 @@
 - 支持 WebSocket 实时通信
 - **支持多模态消息**（图片、文件）
 - 支持 AI 生成的图片/文件发送给用户
+- **支持"思考中"消息** - 用户发送消息后立即收到反馈
 
 ## 安装方式
 
@@ -88,15 +89,16 @@ openclaw config set channels.53aihub.enabled true
 
 ### 配置参数说明
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `botId` | 是 | AgentHub 智能体 ID (HashID) |
-| `secret` | 是 | AgentHub App Secret / Token |
-| `websocketUrl` | 是 | AgentHub WebSocket 连接地址 |
-| `token` | 否 | secret 的别名，与 secret 二选一 |
-| `enabled` | 否 | 是否启用通道，默认 false |
-| `accessPolicy` | 否 | 访问策略: `open`=开放所有用户, `allowlist`=仅白名单用户, `pairing`=首次使用需审批 |
-| `allowFrom` | 否 | 访问控制白名单，配合 accessPolicy=allowlist 或 pairing 使用 |
+| 参数 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `botId` | 是 | - | AgentHub 智能体 ID (HashID) |
+| `secret` | 是 | - | AgentHub App Secret / Token |
+| `websocketUrl` | 是 | - | AgentHub WebSocket 连接地址 |
+| `token` | 否 | - | secret 的别名，与 secret 二选一 |
+| `enabled` | 否 | false | 是否启用通道 |
+| `accessPolicy` | 否 | `open` | 访问策略: `open`=开放所有用户, `allowlist`=仅白名单用户, `pairing`=首次使用需审批, `disabled`=禁用 |
+| `allowFrom` | 否 | - | 访问控制白名单，配合 accessPolicy=allowlist 或 pairing 使用 |
+| `sendThinkingMessage` | 否 | true | 是否发送"思考中"提示消息 |
 
 ### 访问控制配置示例
 
@@ -239,14 +241,6 @@ await sendMediaMessage(wsClient, "user-123", {
 | `base64` | string | Base64 编码数据（与 url 二选一） |
 | `mimeType` | string | MIME 类型，如 `image/png`、`application/pdf` |
 | `filename` | string | 文件名（仅 file 类型需要） |
-
-### 配置参数
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `mediaMaxMB` | 20 | 媒体文件最大大小（MB） |
-| `imageDownloadTimeoutMs` | 30000 | 图片下载超时（毫秒） |
-| `fileDownloadTimeoutMs` | 60000 | 文件下载超时（毫秒） |
 
 ## 卸载
 

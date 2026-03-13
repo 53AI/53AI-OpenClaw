@@ -160,3 +160,55 @@ export async function sendMediaMessage(
   runtime?.log?.(`[53aihub] sendMediaMessage: to=${to}, type=${media.type}, url=${media.url ? "provided" : "none"}`);
   wsClient.send(JSON.stringify(payload));
 }
+
+export async function sendThinkingMessage(
+  wsClient: WebSocket,
+  text: string,
+  msgId: string,
+  streamId: string,
+  runtime?: RuntimeEnv
+): Promise<void> {
+  const wsState = wsClient.readyState;
+  runtime?.log?.(`[53aihub] sendThinkingMessage CALLED: msgId=${msgId}, streamId=${streamId}, text=${text}, wsReadyState=${wsState}`);
+
+  if (wsState !== 1) {
+    runtime?.error?.(`[53aihub] sendThinkingMessage SKIPPED: WebSocket not ready (state=${wsState})`);
+    return;
+  }
+
+  // 使用 OpenAI 兼容格式，确保 Go 后端能正确解析
+  // 关键：req_id 必须使用原始消息的 msgId，这样 Go 后端才能关联请求和响应
+  const chunk = {
+    id: streamId,
+    object: "chat.completion.chunk",
+    created: Math.floor(Date.now() / 1000),
+    model: "openclaw-agent",
+    choices: [
+      {
+        index: 0,
+        delta: {
+          content: text,
+          role: "assistant",
+        },
+        finish_reason: null,
+      },
+    ],
+  };
+
+  const payload: AgentHubWsMessage = {
+    req_id: msgId,
+    action: "chat",
+    status: "thinking",
+    data: chunk,
+  };
+
+  const jsonStr = JSON.stringify(payload);
+  runtime?.log?.(`[53aihub] sendThinkingMessage SENDING: ${jsonStr}`);
+  
+  try {
+    wsClient.send(jsonStr);
+    runtime?.log?.(`[53aihub] sendThinkingMessage SENT SUCCESS: msgId=${msgId}`);
+  } catch (err) {
+    runtime?.error?.(`[53aihub] sendThinkingMessage SEND FAILED: ${String(err)}`);
+  }
+}

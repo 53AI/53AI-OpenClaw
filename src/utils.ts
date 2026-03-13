@@ -28,7 +28,7 @@ export interface AIHubConfig {
   /** 访问控制白名单 */
   allowFrom?: Array<string | number>;
   /** 访问策略: open=开放, allowlist=白名单, pairing=配对审批 */
-  accessPolicy?: "open" | "allowlist" | "pairing";
+  accessPolicy?: "open" | "allowlist" | "pairing" | "disabled";
   
   /** 是否发送"思考中"消息 */
   sendThinkingMessage?: boolean;

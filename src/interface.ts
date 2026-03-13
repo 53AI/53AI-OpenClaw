@@ -11,7 +11,7 @@ import type { ResolvedAccount } from "./utils.js";
 export interface AgentHubWsMessage {
   req_id: string;
   action: "chat" | "message" | "ping" | "pong";
-  status: "streaming" | "done" | "error" | "final";
+  status: "streaming" | "done" | "error" | "final" | "thinking";
   data: any;
 }
 

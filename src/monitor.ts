@@ -10,11 +10,12 @@ import {
   WS_RECONNECT_BASE_DELAY_MS,
   MEDIA_IMAGE_PLACEHOLDER,
   MEDIA_DOCUMENT_PLACEHOLDER,
+  THINKING_MESSAGE,
 } from "./const.js";
 import type { MonitorOptions, MessageState, AgentHubIncomingMessage, AgentHubWsMessage } from "./interface.js";
 import { ErrorCode, inferErrorCode } from "./interface.js";
 import { parseIncomingMessage, parseMessageContent } from "./message-parser.js";
-import { sendReply } from "./message-sender.js";
+import { sendReply, sendThinkingMessage } from "./message-sender.js";
 import { checkAccessPolicy } from "./access-policy.js";
 import {
   setWebSocket,
@@ -142,6 +143,18 @@ async function processMessage(params: {
 
   const state: MessageState = { accumulatedText: "", lastSentText: "", streamId };
   setMessageState(body.msgId, state);
+
+  if (account.sendThinkingMessage) {
+    runtime.log?.(`[53aihub] processMessage: sendThinkingMessage=${account.sendThinkingMessage}, about to send thinking message`);
+    try {
+      await sendThinkingMessage(wsClient, THINKING_MESSAGE, body.msgId, state.streamId, runtime);
+      runtime.log?.(`[53aihub] processMessage: thinking message sent successfully`);
+    } catch (err) {
+      runtime.error?.(`[53aihub] Failed to send thinking message: ${String(err)}`);
+    }
+  } else {
+    runtime.log?.(`[53aihub] processMessage: sendThinkingMessage=${account.sendThinkingMessage}, SKIPPING thinking message`);
+  }
 
   const cleanupState = () => {
     deleteMessageState(body.msgId);

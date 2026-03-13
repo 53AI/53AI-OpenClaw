@@ -77,9 +77,10 @@ export const REQID_FLUSH_DEBOUNCE_MS = 2000;
 /** ReqId 最大条目数 */
 export const REQID_MAX_ENTRIES = 5000;
 
+export const THINKING_MESSAGE = "🤔 正在思考中...";
+
 // ============================================================================
 // 默认策略
 // ============================================================================
 
-/** 默认访问策略 */
 export const DEFAULT_ACCESS_POLICY = "open";
