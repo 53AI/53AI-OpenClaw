@@ -10,10 +10,13 @@ export const DEFAULT_WS_URL = "ws://localhost:8080/ws";
 /** 心跳间隔（毫秒） */
 export const WS_HEARTBEAT_INTERVAL_MS = 15000;
 
-/** 最大重连次数 */
-export const WS_MAX_RECONNECT_ATTEMPTS = 100;
+/** 
+ * 最大重连次数
+ * 设为 60 次，配合指数退避（最大 30 秒），总重连时间约 30 分钟
+ */
+export const WS_MAX_RECONNECT_ATTEMPTS = 60;
 
-/** 重连基础延迟（毫秒） */
+/** 重连基础延迟（毫秒） - 指数退避的起始值 */
 export const WS_RECONNECT_BASE_DELAY_MS = 1000;
 
 // ============================================================================

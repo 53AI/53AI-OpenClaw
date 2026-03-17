@@ -128,8 +128,8 @@ export async function cleanupAccount(accountId: string): Promise<void> {
   if (wsClient) {
     try {
       wsClient.close();
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error(`[53aihub] Error closing WebSocket for account ${accountId}:`, err);
     }
     wsClientInstances.delete(accountId);
   }
@@ -143,8 +143,8 @@ export async function cleanupAll(): Promise<void> {
   for (const [accountId, wsClient] of wsClientInstances) {
     try {
       wsClient.close();
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error(`[53aihub] Error closing WebSocket for account ${accountId}:`, err);
     }
   }
   wsClientInstances.clear();

@@ -29,6 +29,46 @@ import {
 import { withTimeout } from "./timeout.js";
 import { downloadAndSaveImages, downloadAndSaveFiles } from "./media-handler.js";
 
+// 消息队列处理器 - 确保消息按顺序处理，避免竞态条件
+class MessageQueue {
+  private queue: Array<() => Promise<void>> = [];
+  private processing = false;
+  private runtime: RuntimeEnv;
+
+  constructor(runtime: RuntimeEnv) {
+    this.runtime = runtime;
+  }
+
+  enqueue(task: () => Promise<void>): void {
+    this.queue.push(task);
+    this.process();
+  }
+
+  private async process(): Promise<void> {
+    if (this.processing || this.queue.length === 0) return;
+    
+    this.processing = true;
+    try {
+      const task = this.queue.shift();
+      if (task) {
+        await task();
+      }
+    } catch (err) {
+      this.runtime.error?.(`[53aihub] MessageQueue error: ${String(err)}`);
+    } finally {
+      this.processing = false;
+      // 继续处理队列中的下一条消息
+      if (this.queue.length > 0) {
+        this.process();
+      }
+    }
+  }
+
+  clear(): void {
+    this.queue = [];
+  }
+}
+
 function buildMessageContext(
   body: AgentHubIncomingMessage,
   account: ResolvedAccount,
@@ -325,18 +365,31 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
     let reconnectAttempts = 0;
     let pingInterval: NodeJS.Timeout | null = null;
     let isAborted = false;
+    let messageQueue: MessageQueue | null = null;
+
+    const cleanup = async () => {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
+      if (messageQueue) {
+        messageQueue.clear();
+        messageQueue = null;
+      }
+      await cleanupAccount(account.accountId);
+    };
 
     const connect = () => {
       if (isAborted) return;
       
-      const wsUrlObj = new URL(account.websocketUrl);
+      // 安全: 不在 URL 中传递敏感信息，仅通过 headers 传递认证
+      const wsUrl = account.websocketUrl;
       const botId = account.botId || account.config.botId;
       const secret = account.secret || account.token || account.config.secret || account.config.token;
-      
-      if (botId) wsUrlObj.searchParams.append("botId", botId);
-      if (secret) wsUrlObj.searchParams.append("secret", secret);
-      
-      const wsUrl = wsUrlObj.toString();
+
+      // 日志输出时隐藏敏感信息
+      const safeUrl = new URL(wsUrl);
+      const logUrl = `${safeUrl.origin}${safeUrl.pathname}`;
 
       const authBase64 = Buffer.from(`${botId}:${secret}`).toString('base64');
 
@@ -349,9 +402,12 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
         } as Record<string, string>
       };
 
-      runtime.log?.(`[${account.accountId}] Connecting to ${wsUrl} ...`);
+      runtime.log?.(`[${account.accountId}] Connecting to ${logUrl} ...`);
       wsClient = new WebSocket(wsUrl, wsOptions);
       setWebSocket(account.accountId, wsClient);
+      
+      // 初始化消息队列
+      messageQueue = new MessageQueue(runtime);
 
       wsClient.on("open", () => {
         runtime.log?.(`[${account.accountId}] WebSocket connected successfully`);
@@ -363,10 +419,12 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
         }, WS_HEARTBEAT_INTERVAL_MS);
       });
 
-      wsClient.on("message", async (data: Buffer | string) => {
-        try {
-          const rawPayload = data.toString();
-          runtime.log?.(`[${account.accountId}] Received WS message: ${rawPayload.substring(0, 200)}...`);
+      wsClient.on("message", (data: Buffer | string) => {
+        const rawPayload = data.toString();
+        runtime.log?.(`[${account.accountId}] Received WS message: ${rawPayload.substring(0, 200)}...`);
+        
+        // 使用消息队列确保顺序处理，避免竞态条件
+        messageQueue?.enqueue(async () => {
           await processMessage({
             rawPayload,
             account,
@@ -374,18 +432,25 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
             runtime,
             wsClient: wsClient!,
           });
-        } catch (err) {
-          runtime.error?.(`[${account.accountId}] Message processing error: ${String(err)}`);
-        }
+        });
       });
 
       wsClient.on("error", (err) => {
         runtime.error?.(`[${account.accountId}] WebSocket Error: ${String(err)}`);
       });
 
-      wsClient.on("close", (code, reason) => {
+      wsClient.on("close", async (code, reason) => {
         runtime.log?.(`[${account.accountId}] WebSocket closed. Code: ${code}, Reason: ${reason}`);
-        if (pingInterval) clearInterval(pingInterval);
+        
+        // 清理资源
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        if (messageQueue) {
+          messageQueue.clear();
+          messageQueue = null;
+        }
         
         if (!isAborted && reconnectAttempts < WS_MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts++;
@@ -393,7 +458,9 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
           runtime.log?.(`[${account.accountId}] Reconnecting in ${backoff}ms... (attempt ${reconnectAttempts}/${WS_MAX_RECONNECT_ATTEMPTS})`);
           setTimeout(connect, backoff);
         } else if (!isAborted) {
-          reject(new Error("Max reconnect attempts reached"));
+          runtime.error?.(`[${account.accountId}] Max reconnect attempts (${WS_MAX_RECONNECT_ATTEMPTS}) reached`);
+          await cleanup();
+          reject(new Error(`Max reconnect attempts (${WS_MAX_RECONNECT_ATTEMPTS}) reached`));
         }
       });
     };
@@ -401,14 +468,16 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
     if (abortSignal) {
       abortSignal.addEventListener("abort", async () => {
         isAborted = true;
-        if (pingInterval) clearInterval(pingInterval);
-        await cleanupAccount(account.accountId);
+        await cleanup();
         resolve();
       });
     }
 
     warmupReqIdStore(account.accountId, (msg) => runtime.log?.(msg))
       .then(() => connect())
-      .catch(reject);
+      .catch(async (err) => {
+        runtime.error?.(`[${account.accountId}] Failed to warmup ReqId store: ${String(err)}`);
+        await cleanup();
+        reject(err);
   });
 }

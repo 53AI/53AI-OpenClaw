@@ -6,13 +6,78 @@ import type { ResolvedAccount } from "./utils.js";
 // ============================================================================
 
 /**
+ * OpenAI 兼容的消息格式
+ */
+export interface OpenAIChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string | MessageContentItem[];
+  name?: string;
+}
+
+/**
+ * OpenAI 兼容的请求格式
+ */
+export interface OpenAIChatRequest {
+  model?: string;
+  messages: OpenAIChatMessage[];
+  user?: string;
+  conversation_id?: string;
+  stream?: boolean;
+}
+
+/**
+ * OpenAI 兼容的响应块格式
+ */
+export interface OpenAIChatCompletionChunk {
+  id: string;
+  object: "chat.completion.chunk";
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    delta: {
+      content?: string;
+      role?: string;
+    };
+    finish_reason: string | null;
+  }>;
+  error?: ResponseError;
+}
+
+/**
+ * AgentHub 消息数据类型
+ */
+export interface AgentHubMessageData {
+  toChatId?: string;
+  text?: string;
+  imageUrls?: string[];
+  fileUrls?: string[];
+  type?: string;
+  msgId?: string;
+  id?: string;
+  chatId?: string;
+  userId?: string;
+  content?: string;
+  quoteContent?: string;
+  images?: Array<{ url?: string }>;
+  files?: Array<{ url?: string }>;
+  media?: {
+    type: "image" | "file";
+    url?: string;
+    base64?: string;
+    mimeType?: string;
+    filename?: string;
+  };
+}
+
+/**
  * WebSocket 请求/响应消息基础格式
  */
 export interface AgentHubWsMessage {
   req_id: string;
   action: "chat" | "message" | "ping" | "pong";
   status: "streaming" | "done" | "error" | "final" | "thinking";
-  data: any;
+  data: OpenAIChatRequest | OpenAIChatCompletionChunk | AgentHubMessageData | null;
 }
 
 /**
