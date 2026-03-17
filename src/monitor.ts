@@ -479,5 +479,6 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
         runtime.error?.(`[${account.accountId}] Failed to warmup ReqId store: ${String(err)}`);
         await cleanup();
         reject(err);
+      });
   });
 }

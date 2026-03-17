@@ -19,12 +19,12 @@
 
 ```bash
 # 在插件目录下构建
-cd 53aihub-openclaw-plugin
+cd 53ai-openclaw
 npm install
 npm run build
 
 # 方式 A: 链式安装 (推荐开发时使用，修改后只需重启 gateway)
-openclaw plugins install -l /path/to/53aihub-openclaw-plugin
+openclaw plugins install -l /path/to/53ai-openclaw
 
 # 方式 B: 复制到扩展目录
 mkdir -p ~/.openclaw/extensions/53aihub
@@ -41,31 +41,31 @@ cd ~/.openclaw/extensions/53aihub && npm install --production
 cd 53aihub-openclaw-plugin
 npm run clean && npm install && npm run build
 npm pack
-# 生成: 53aihub-1.0.0.tgz
+# 生成: 53ai-openclaw-1.0.0.tgz
 ```
 
 **安装：**
 ```bash
 # 从本地 tarball 安装
-openclaw plugins install ./53aihub-1.0.0.tgz
+openclaw plugins install ./53ai-openclaw-1.0.0.tgz
 
 # 或从远程 URL 安装
-openclaw plugins install https://your-server.com/53aihub-1.0.0.tgz
+openclaw plugins install https://your-server.com/53ai-openclaw-1.0.0.tgz
 ```
 
 ### 方式三：从 npm 安装（待实现）
 
 ```bash
-openclaw plugins install 53aihub-openclaw-plugin
+openclaw plugins install 53ai-openclaw
 
 # 或指定版本
-openclaw plugins install 53aihub-openclaw-plugin@1.0.0
+openclaw plugins install 53ai-openclaw@1.0.0
 ```
 
 ### 方式四：从 Git 仓库安装
 
 ```bash
-openclaw plugins install git@gitcode.com:qunyy/53aihub-openclaw-plugin.git
+openclaw plugins install git@gitcode.com:qunyy/53ai-openclaw.git
 ```
 
 ## 配置
@@ -249,7 +249,7 @@ await sendMediaMessage(wsClient, "user-123", {
 openclaw config delete channels.53aihub
 
 # 移除插件
-openclaw plugins uninstall 53aihub-openclaw-plugin --force
+openclaw plugins uninstall 53ai-openclaw --force
 ```
 
 ## 开发

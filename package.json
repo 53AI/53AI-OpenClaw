@@ -1,5 +1,5 @@
 {
-  "name": "@53ai/53aihub-openclaw-plugin",
+  "name": "@53ai/53ai-openclaw",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.cjs.js",
@@ -18,13 +18,13 @@
     "publish:release": "npm run prebuild && npm run build && npm publish"
   },
   "keywords": [
-    "53aihub",
+    "53ai",
     "openclaw",
-    "53aihub-openclaw-plugin"
+    "53ai-openclaw"
   ],
   "author": "",
   "license": "MIT",
-  "description": "OpenClaw 53aihub (AgentHub) channel plugin",
+  "description": "OpenClaw 53AI channel plugin",
   "openclaw": {
     "extensions": [
       "./dist/index.esm.js"
@@ -34,14 +34,14 @@
       "label": "53AIHub",
       "selectionLabel": "53AIHub (AgentHub)",
       "docsPath": "/channels/53aihub",
-      "docsLabel": "53aihub-openclaw-plugin",
+      "docsLabel": "53ai-openclaw",
       "blurb": "53AIHub 智能机器人接入插件",
       "order": 90,
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@53ai/53aihub-openclaw-plugin",
-      "localPath": "extensions/53aihub-openclaw-plugin",
+      "npmSpec": "@53ai/53ai-openclaw",
+      "localPath": "extensions/53ai-openclaw",
       "defaultChoice": "npm"
     }
   },
