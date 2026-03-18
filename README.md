@@ -1,4 +1,4 @@
-# 53AIHub OpenClaw 插件
+# 53AI OpenClaw 插件
 
 53AIHub (AgentHub) 智能机器人接入 OpenClaw 的通道插件。
 
@@ -13,7 +13,20 @@
 
 ## 安装方式
 
-### 方式一：本地开发调试安装
+### 方式一：从 npm 安装（推荐）
+
+```bash
+# 使用 npm 安装
+npm install @53ai/53ai-openclaw
+
+# 或使用 openclaw CLI
+openclaw plugins install @53ai/53ai-openclaw
+
+# 指定版本
+openclaw plugins install @53ai/53ai-openclaw@1.0.0
+```
+
+### 方式二：本地开发调试安装
 
 适用于插件开发阶段，支持热更新。
 
@@ -32,13 +45,13 @@ cp -r dist openclaw.plugin.json package.json ~/.openclaw/extensions/53aihub/
 cd ~/.openclaw/extensions/53aihub && npm install --production
 ```
 
-### 方式二：npm pack 打包安装
+### 方式三：npm pack 打包安装
 
 适用于分发 tarball 文件，无需 npm 发布。
 
 **打包：**
 ```bash
-cd 53aihub-openclaw-plugin
+cd 53ai-openclaw
 npm run clean && npm install && npm run build
 npm pack
 # 生成: 53ai-openclaw-1.0.0.tgz
@@ -53,19 +66,10 @@ openclaw plugins install ./53ai-openclaw-1.0.0.tgz
 openclaw plugins install https://your-server.com/53ai-openclaw-1.0.0.tgz
 ```
 
-### 方式三：从 npm 安装（待实现）
-
-```bash
-openclaw plugins install 53ai-openclaw
-
-# 或指定版本
-openclaw plugins install 53ai-openclaw@1.0.0
-```
-
 ### 方式四：从 Git 仓库安装
 
 ```bash
-openclaw plugins install git@gitcode.com:qunyy/53ai-openclaw.git
+openclaw plugins install git@github.com:53ai/53ai-openclaw.git
 ```
 
 ## 配置
@@ -121,6 +125,7 @@ openclaw config set channels.53aihub.accessPolicy "open"
 
 ### 查看配置状态
 
+```bash
 # 查看通道状态
 openclaw channels status
 
@@ -242,6 +247,117 @@ await sendMediaMessage(wsClient, "user-123", {
 | `mimeType` | string | MIME 类型，如 `image/png`、`application/pdf` |
 | `filename` | string | 文件名（仅 file 类型需要） |
 
+---
+
+## 发布到 NPM
+
+本插件已发布到 npmjs.com，包名为 `@53ai/53ai-openclaw`。
+
+### 开发者发布流程
+
+#### 前置条件
+
+1. 拥有 npmjs.com 账号并登录：
+```bash
+npm login --registry=https://registry.npmjs.org/
+```
+
+2. 确认登录状态：
+```bash
+npm whoami
+```
+
+#### 发布新版本
+
+```bash
+# 方式一：使用 npm scripts（推荐）
+npm run release           # 发布当前版本（不升级版本号）
+npm run release:patch     # 升级补丁版本 (1.0.0 -> 1.0.1)
+npm run release:minor     # 升级次版本 (1.0.0 -> 1.1.0)
+npm run release:major     # 升级主版本 (1.0.0 -> 2.0.0)
+
+# 方式二：直接使用脚本
+bash scripts/publish.sh           # 发布当前版本
+bash scripts/publish.sh patch     # 升级补丁版本
+bash scripts/publish.sh 2.0.0     # 指定版本号发布
+```
+
+#### 发布脚本功能
+
+`scripts/publish.sh` 会自动执行以下步骤：
+
+| 步骤 | 说明 |
+|------|------|
+| 1. 检查 npm 登录 | 验证是否已登录 npm |
+| 2. 检查 git 状态 | 提示未提交的更改 |
+| 3. 运行测试 | 如有测试配置则执行 |
+| 4. 升级版本号 | 可选，根据参数决定 |
+| 5. 构建项目 | 执行 `npm run build` |
+| 6. 预览发布文件 | 显示将要发布的文件列表 |
+| 7. 确认发布 | 交互式确认后发布 |
+| 8. 创建 git 标签 | 自动创建版本标签 |
+
+#### 发布后验证
+
+```bash
+# 查看包信息
+npm info @53ai/53ai-openclaw
+
+# 查看所有版本
+npm view @53ai/53ai-openclaw versions
+
+# 访问 npm 页面
+# https://www.npmjs.com/package/@53ai/53ai-openclaw
+```
+
+### 版本更新策略
+
+| 命令 | 版本变化 | 适用场景 |
+|------|----------|----------|
+| `npm run release:patch` | 1.0.0 → 1.0.1 | Bug 修复 |
+| `npm run release:minor` | 1.0.0 → 1.1.0 | 新功能添加（向后兼容） |
+| `npm run release:major` | 1.0.0 → 2.0.0 | 破坏性变更 |
+
+### 自动化发布（CI/CD）
+
+如需在 CI/CD 环境中自动发布，可配置 npm token：
+
+```bash
+# 设置 npm token（在 CI 环境中）
+echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+
+# 非交互式发布
+npm publish --access public
+```
+
+**GitHub Actions 示例**：
+
+```yaml
+# .github/workflows/publish.yml
+name: Publish to npm
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+---
+
 ## 卸载
 
 ```bash
@@ -251,6 +367,8 @@ openclaw config delete channels.53aihub
 # 移除插件
 openclaw plugins uninstall 53ai-openclaw --force
 ```
+
+---
 
 ## 开发
 
@@ -266,7 +384,12 @@ npm run dev
 
 # 清理构建产物
 npm run clean
+
+# 运行测试
+npm test
 ```
+
+---
 
 ## 故障排查
 
@@ -287,6 +410,14 @@ npm run clean
 1. 检查 `websocketUrl` 格式是否正确
 2. 确认网络可达性
 3. 检查 `botId` 和 `secret` 是否正确
+
+### 发布失败
+
+1. 确认已登录 npm: `npm whoami`
+2. 确认有权限发布 `@53ai` 作用域的包
+3. 检查版本号是否已存在: `npm view @53ai/53ai-openclaw versions`
+
+---
 
 ## License
 

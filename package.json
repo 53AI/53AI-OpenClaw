@@ -8,30 +8,47 @@
   "files": [
     "dist",
     "openclaw.plugin.json",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "publish:release": "npm run prebuild && npm run build && npm publish"
+    "test": "echo \"No tests configured\" && exit 0",
+    "prepublishOnly": "npm run build",
+    "release": "bash scripts/publish.sh",
+    "release:patch": "bash scripts/publish.sh patch",
+    "release:minor": "bash scripts/publish.sh minor",
+    "release:major": "bash scripts/publish.sh major"
   },
   "keywords": [
     "53ai",
     "openclaw",
-    "53ai-openclaw"
+    "53ai-openclaw",
+    "agent",
+    "chatbot",
+    "websocket"
   ],
-  "author": "",
+  "author": "53AI",
   "license": "MIT",
   "description": "OpenClaw 53AI channel plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/53AI/53ai-openclaw.git"
+  },
+  "bugs": {
+    "url": "https://github.com/53AI/53ai-openclaw/issues"
+  },
+  "homepage": "https://github.com/53AI/53ai-openclaw#readme",
   "openclaw": {
     "extensions": [
       "./dist/index.esm.js"
     ],
     "channel": {
       "id": "53aihub",
-      "label": "53AIHub",
+      "paclabel": "53AIHub",
       "selectionLabel": "53AIHub (AgentHub)",
       "docsPath": "/channels/53aihub",
       "docsLabel": "53ai-openclaw",

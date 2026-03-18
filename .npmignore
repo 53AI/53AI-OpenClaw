@@ -1,0 +1,35 @@
+# .npmignore - 发布时排除的文件
+
+# 源代码
+src/
+*.ts
+!*.d.ts
+
+# 开发配置
+tsconfig.json
+rollup.config.mjs
+
+# 开发工具
+.git/
+.gitignore
+node_modules/
+
+# 构建产物（保留 dist）
+*.map
+*.tgz
+
+# 测试和文档
+coverage/
+.nyc_output/
+*.test.ts
+*.spec.ts
+
+# IDE 配置
+.vscode/
+.idea/
+
+# 临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

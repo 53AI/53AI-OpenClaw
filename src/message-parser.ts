@@ -87,9 +87,9 @@ function extractFilesFromContent(content: unknown): { urls: string[]; items: Mes
   return { urls, items };
 }
 
-export function parseIncomingMessage(rawData: string): AgentHubIncomingMessage | null {
+export function parseIncomingMessage(rawJson: string): AgentHubIncomingMessage | null {
   try {
-    const wsMsg = JSON.parse(rawData) as AgentHubWsMessage;
+    const wsMsg = JSON.parse(rawJson) as AgentHubWsMessage;
     
     if (wsMsg.action === "ping" || wsMsg.action === "pong") {
       return null;
@@ -127,9 +127,9 @@ export function parseIncomingMessage(rawData: string): AgentHubIncomingMessage |
 
     // 处理非标准格式的消息 (action === "message")
     const data = wsMsg.data as AgentHubMessageData;
-    const rawData = data as Record<string, unknown>;
-    const rawImages = rawData.images;
-    const rawFiles = rawData.files;
+    const dataRecord = data as Record<string, unknown>;
+    const rawImages = dataRecord.images;
+    const rawFiles = dataRecord.files;
     
     const imageUrls: string[] = data.imageUrls || 
       (Array.isArray(rawImages) ? rawImages.map((img: unknown) => {
@@ -146,14 +146,14 @@ export function parseIncomingMessage(rawData: string): AgentHubIncomingMessage |
       }).filter(Boolean) : []);
     
     return {
-      type: (rawData.type as string) || "message",
-      msgId: (rawData.msgId as string) || (rawData.id as string) || `msg-${Date.now()}`,
-      chatId: (rawData.chatId as string) || (rawData.userId as string) || "default-chat",
-      userId: (rawData.userId as string) || (rawData.chatId as string) || "default-user",
-      text: (rawData.text as string) || (rawData.content as string) || "",
+      type: (dataRecord.type as string) || "message",
+      msgId: (dataRecord.msgId as string) || (dataRecord.id as string) || `msg-${Date.now()}`,
+      chatId: (dataRecord.chatId as string) || (dataRecord.userId as string) || "default-chat",
+      userId: (dataRecord.userId as string) || (dataRecord.chatId as string) || "default-user",
+      text: (dataRecord.text as string) || (dataRecord.content as string) || "",
       imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       fileUrls: fileUrls.length > 0 ? fileUrls : undefined,
-      quoteContent: rawData.quoteContent as string | undefined,
+      quoteContent: dataRecord.quoteContent as string | undefined,
     };
   } catch {
     return null;
