@@ -5,8 +5,8 @@ import { aiHubPlugin } from "./src/channel.js";
 import { setRuntime } from "./src/runtime.js";
 
 const plugin = {
-  id: "53aihub-openclaw-plugin",
-  name: "53AIHub",
+  id: "53ai-openclaw",
+  name: "53AI OpenClaw",
   description: "53AIHub (AgentHub) OpenClaw 插件",
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
