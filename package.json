@@ -1,6 +1,6 @@
 {
   "name": "@53ai/53ai-openclaw",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
@@ -42,26 +42,6 @@
     "url": "https://github.com/53AI/53ai-openclaw/issues"
   },
   "homepage": "https://github.com/53AI/53ai-openclaw#readme",
-  "openclaw": {
-    "extensions": [
-      "./dist/index.esm.js"
-    ],
-    "channel": {
-      "id": "53aihub",
-      "paclabel": "53AIHub",
-      "selectionLabel": "53AIHub (AgentHub)",
-      "docsPath": "/channels/53aihub",
-      "docsLabel": "53ai-openclaw",
-      "blurb": "53AIHub 智能机器人接入插件",
-      "order": 90,
-      "quickstartAllowFrom": true
-    },
-    "install": {
-      "npmSpec": "@53ai/53ai-openclaw",
-      "localPath": "extensions/53ai-openclaw",
-      "defaultChoice": "npm"
-    }
-  },
   "dependencies": {
     "ws": "^8.16.0"
   },
