@@ -47,7 +47,7 @@ export interface OpenAIChatCompletionChunk {
 /**
  * 53AIHub 消息数据类型
  */
-export interface Hub53AIMessageData {
+export interface MessageData {
   toChatId?: string;
   text?: string;
   imageUrls?: string[];
@@ -77,7 +77,7 @@ export interface Hub53AIWsMessage {
   req_id: string;
   action: "chat" | "message" | "ping" | "pong";
   status: "streaming" | "done" | "error" | "final" | "thinking";
-  data: OpenAIChatRequest | OpenAIChatCompletionChunk | Hub53AIMessageData | null;
+  data: OpenAIChatRequest | OpenAIChatCompletionChunk | MessageData | null;
 }
 
 /**
@@ -190,18 +190,18 @@ export enum ErrorCode {
   // 访问控制
   ACCESS_DENIED = "ACCESS_DENIED",
   PAIRING_REQUIRED = "PAIRING_REQUIRED",
-  
+
   // AI 服务错误
   RATE_LIMITED = "RATE_LIMITED",
   INSUFFICIENT_QUOTA = "INSUFFICIENT_QUOTA",
   MODEL_OVERLOADED = "MODEL_OVERLOADED",
   MODEL_NOT_FOUND = "MODEL_NOT_FOUND",
-  
+
   // 请求错误
   INVALID_REQUEST = "INVALID_REQUEST",
   CONTEXT_LENGTH_EXCEEDED = "CONTEXT_LENGTH_EXCEEDED",
   CONTENT_FILTERED = "CONTENT_FILTERED",
-  
+
   // 系统错误
   TIMEOUT = "TIMEOUT",
   INTERNAL_ERROR = "INTERNAL_ERROR",
@@ -243,7 +243,7 @@ export interface ResponseData {
  */
 export function inferErrorCode(errorText: string): ErrorCode {
   const text = errorText.toLowerCase();
-  
+
   if (text.includes("rate limit") || text.includes("429") || text.includes("too many requests")) {
     return ErrorCode.RATE_LIMITED;
   }
@@ -271,6 +271,6 @@ export function inferErrorCode(errorText: string): ErrorCode {
   if (text.includes("invalid") || text.includes("bad request")) {
     return ErrorCode.INVALID_REQUEST;
   }
-  
+
   return ErrorCode.INTERNAL_ERROR;
 }

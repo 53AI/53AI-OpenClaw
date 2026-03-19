@@ -1,4 +1,4 @@
-import type { Hub53AIIncomingMessage, Hub53AIWsMessage, MessageContentItem, OpenAIChatRequest, Hub53AIMessageData } from "./interface.js";
+import type { Hub53AIIncomingMessage, Hub53AIWsMessage, MessageContentItem, OpenAIChatRequest, MessageData } from "./interface.js";
 
 export interface ParsedMessageContent {
   textParts: string[];
@@ -13,7 +13,7 @@ function extractTextFromContent(content: unknown): string {
   }
   if (Array.isArray(content)) {
     return content
-      .filter((item): item is { type: string; text?: string } => 
+      .filter((item): item is { type: string; text?: string } =>
         typeof item === "object" && item !== null && item.type === "text"
       )
       .map((item) => item.text || "")
@@ -29,13 +29,13 @@ function extractImagesFromContent(content: unknown): { urls: string[]; items: Me
   if (Array.isArray(content)) {
     for (const item of content) {
       if (typeof item !== "object" || item === null) continue;
-      
+
       const itemRecord = item as Record<string, unknown>;
-      
-      if (itemRecord.type === "image_url" && 
-          typeof itemRecord.image_url === "object" && 
-          itemRecord.image_url !== null &&
-          "url" in itemRecord.image_url) {
+
+      if (itemRecord.type === "image_url" &&
+        typeof itemRecord.image_url === "object" &&
+        itemRecord.image_url !== null &&
+        "url" in itemRecord.image_url) {
         const url = String((itemRecord.image_url as Record<string, unknown>).url);
         urls.push(url);
         items.push({
@@ -66,9 +66,9 @@ function extractFilesFromContent(content: unknown): { urls: string[]; items: Mes
   if (Array.isArray(content)) {
     for (const item of content) {
       if (typeof item !== "object" || item === null) continue;
-      
+
       const itemRecord = item as Record<string, unknown>;
-      
+
       if (itemRecord.type === "file" && (itemRecord.url || itemRecord.base64)) {
         if (typeof itemRecord.url === "string") urls.push(itemRecord.url);
         items.push({
@@ -90,7 +90,7 @@ function extractFilesFromContent(content: unknown): { urls: string[]; items: Mes
 export function parseIncomingMessage(rawJson: string): Hub53AIIncomingMessage | null {
   try {
     const wsMsg = JSON.parse(rawJson) as Hub53AIWsMessage;
-    
+
     if (wsMsg.action === "ping" || wsMsg.action === "pong") {
       return null;
     }
@@ -126,25 +126,25 @@ export function parseIncomingMessage(rawJson: string): Hub53AIIncomingMessage | 
     }
 
     // 处理非标准格式的消息 (action === "message")
-    const data = wsMsg.data as Hub53AIMessageData;
+    const data = wsMsg.data as MessageData;
     const dataRecord = data as Record<string, unknown>;
     const rawImages = dataRecord.images;
     const rawFiles = dataRecord.files;
-    
-    const imageUrls: string[] = data.imageUrls || 
+
+    const imageUrls: string[] = data.imageUrls ||
       (Array.isArray(rawImages) ? rawImages.map((img: unknown) => {
         if (typeof img === "string") return img;
         if (typeof img === "object" && img !== null && "url" in img) return String((img as Record<string, unknown>).url);
         return "";
       }).filter(Boolean) : []);
-    
-    const fileUrls: string[] = data.fileUrls || 
+
+    const fileUrls: string[] = data.fileUrls ||
       (Array.isArray(rawFiles) ? rawFiles.map((f: unknown) => {
         if (typeof f === "string") return f;
         if (typeof f === "object" && f !== null && "url" in f) return String((f as Record<string, unknown>).url);
         return "";
       }).filter(Boolean) : []);
-    
+
     return {
       type: (dataRecord.type as string) || "message",
       msgId: (dataRecord.msgId as string) || (dataRecord.id as string) || `msg-${Date.now()}`,
