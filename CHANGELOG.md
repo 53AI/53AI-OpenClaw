@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.6] - 2026-03-19
+
+### Changed
+- 文档更新：修正了 `botId` 和 `secret` 的说明。
+
 ## [1.0.5] - 2026-03-19
 
 ### Changed
