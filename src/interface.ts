@@ -47,7 +47,7 @@ export interface OpenAIChatCompletionChunk {
 /**
  * 53AIHub 消息数据类型
  */
-export interface 53AIHubMessageData {
+export interface Hub53AIMessageData {
   toChatId?: string;
   text?: string;
   imageUrls?: string[];
@@ -73,11 +73,11 @@ export interface 53AIHubMessageData {
 /**
  * WebSocket 请求/响应消息基础格式
  */
-export interface 53AIHubWsMessage {
+export interface Hub53AIWsMessage {
   req_id: string;
   action: "chat" | "message" | "ping" | "pong";
   status: "streaming" | "done" | "error" | "final" | "thinking";
-  data: OpenAIChatRequest | OpenAIChatCompletionChunk | 53AIHubMessageData | null;
+  data: OpenAIChatRequest | OpenAIChatCompletionChunk | Hub53AIMessageData | null;
 }
 
 /**
@@ -119,7 +119,7 @@ export interface MessageContentItem {
 /**
  * 来自 Go 后端的消息
  */
-export interface 53AIHubIncomingMessage {
+export interface Hub53AIIncomingMessage {
   type: string;
   msgId: string;
   chatId: string;
@@ -138,7 +138,7 @@ export interface 53AIHubIncomingMessage {
 /**
  * 发送给 Go 后端的消息
  */
-export interface 53AIHubOutgoingMessage {
+export interface Hub53AIOutgoingMessage {
   type: "reply" | "message";
   msgId?: string;
   chatId: string;

@@ -1,6 +1,6 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk";
 import type { WebSocket } from "ws";
-import type { 53AIHubWsMessage, ResponseError, 53AIHubOutgoingMessage } from "./interface.js";
+import type { Hub53AIWsMessage, ResponseError, Hub53AIOutgoingMessage } from "./interface.js";
 import { ErrorCode } from "./interface.js";
 
 interface SendReplyParams {
@@ -55,7 +55,7 @@ export async function sendReply(params: SendReplyParams): Promise<void> {
       error: errorInfo,
     };
 
-    const errMsg: 53AIHubWsMessage = {
+    const errMsg: Hub53AIWsMessage = {
       req_id: reqId,
       action: "chat",
       status: "error",
@@ -85,7 +85,7 @@ export async function sendReply(params: SendReplyParams): Promise<void> {
     ],
   };
 
-  const payload: 53AIHubWsMessage = {
+  const payload: Hub53AIWsMessage = {
     req_id: reqId,
     action: "chat",
     status: finish ? "done" : "streaming",
@@ -109,7 +109,7 @@ export async function sendDirectMessage(wsClient: WebSocket, to: string, content
     throw new Error(`[53aihub] WebSocket not connected`);
   }
 
-  const payload: 53AIHubWsMessage = {
+  const payload: Hub53AIWsMessage = {
     req_id: `msg-${Date.now()}`,
     action: "message",
     status: "final",
@@ -140,7 +140,7 @@ export async function sendMediaMessage(
     throw new Error(`[53aihub] WebSocket not connected`);
   }
 
-  const payload: 53AIHubWsMessage = {
+  const payload: Hub53AIWsMessage = {
     req_id: `msg-${Date.now()}`,
     action: "message",
     status: "final",
@@ -195,7 +195,7 @@ export async function sendThinkingMessage(
     ],
   };
 
-  const payload: 53AIHubWsMessage = {
+  const payload: Hub53AIWsMessage = {
     req_id: msgId,
     action: "chat",
     status: "thinking",
