@@ -1,6 +1,6 @@
 # 53AI OpenClaw 插件
 
-53AIHub (AgentHub) 智能机器人接入 OpenClaw 的通道插件。
+53AI OpenClaw 插件是 OpenClaw 接入53AI Hub 的通道插件。
 
 ## 功能
 
