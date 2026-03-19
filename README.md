@@ -95,9 +95,9 @@ openclaw config set channels.53aihub.enabled true
 
 | 参数 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `botId` | 是 | - | 53AIHub 智能体 ID  |
-| `secret` | 是 | - | 53AIHub Secret |
-| `WSUrl` | 是 | - | 53AIHub 长连接连接地址 |
+| `botId` | 是 | - | 智能体的ID  |
+| `secret` | 是 | - | 智能体的Secret |
+| `WSUrl` | 是 | - | 53AIHub平台的WS地址 |
 | `token` | 否 | - | secret 的别名，与 secret 二选一 |
 | `enabled` | 否 | false | 是否启用通道 |
 | `accessPolicy` | 否 | `open` | 访问策略: `open`=开放所有用户, `allowlist`=仅白名单用户, `pairing`=首次使用需审批, `disabled`=禁用 |
