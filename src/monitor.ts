@@ -46,7 +46,7 @@ class MessageQueue {
 
   private async process(): Promise<void> {
     if (this.processing || this.queue.length === 0) return;
-    
+
     this.processing = true;
     try {
       const task = this.queue.shift();
@@ -131,9 +131,9 @@ async function processMessage(params: {
   wsClient: WebSocket;
 }) {
   const { rawPayload, account, config, runtime, wsClient } = params;
-  
+
   runtime.log?.(`[53aihub] processMessage: rawPayload length=${rawPayload.length}`);
-  
+
   const body = parseIncomingMessage(rawPayload);
   if (!body) {
     runtime.log?.(`[53aihub] processMessage: parseIncomingMessage returned null`);
@@ -142,7 +142,7 @@ async function processMessage(params: {
 
   const parsed = parseMessageContent(body);
   const hasMedia = parsed.imageUrls.length > 0 || parsed.fileUrls.length > 0;
-  
+
   if (!parsed.textParts.join("\n").trim() && !hasMedia) {
     runtime.log?.(`[53aihub] processMessage: empty message, body=${JSON.stringify(body)}`);
     return;
@@ -164,7 +164,7 @@ async function processMessage(params: {
   if (!accessResult.allowed) {
     await sendReply({
       wsClient,
-      text: accessResult.reason === "Pairing required" 
+      text: accessResult.reason === "Pairing required"
         ? "您尚未获得授权使用此机器人，请联系管理员进行审核。"
         : `⚠️ 访问被拒绝: ${accessResult.reason || "未知原因"}`,
       toChatId: chatId,
@@ -330,7 +330,7 @@ async function processMessage(params: {
     runtime.error?.(`[53aihub] processMessage FAILED: ${String(err)}`);
     const errorText = String(err);
     const errorCode = inferErrorCode(errorText);
-    
+
     if (!cleanedUp) {
       try {
         await sendReply({
@@ -349,14 +349,14 @@ async function processMessage(params: {
         runtime.error?.(`[53aihub] Failed to send final error notification: ${String(sendErr)}`);
       }
     }
-    
+
     safeCleanup();
   }
 }
 
 export async function monitorProvider(options: MonitorOptions): Promise<void> {
   const { account, config, runtime, abortSignal } = options;
-  
+
   runtime.log?.(`[${account.accountId}] Initializing WS connection to 53AIHub...`);
   startMessageStateCleanup();
 
@@ -381,9 +381,9 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
 
     const connect = () => {
       if (isAborted) return;
-      
+
       // 安全: 不在 URL 中传递敏感信息，仅通过 headers 传递认证
-      const wsUrl = account.websocketUrl;
+      const wsUrl = account.WSUrl;
       const botId = account.botId || account.config.botId;
       const secret = account.secret || account.token || account.config.secret || account.config.token;
 
@@ -405,7 +405,7 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
       runtime.log?.(`[${account.accountId}] Connecting to ${logUrl} ...`);
       wsClient = new WebSocket(wsUrl, wsOptions);
       setWebSocket(account.accountId, wsClient);
-      
+
       // 初始化消息队列
       messageQueue = new MessageQueue(runtime);
 
@@ -422,7 +422,7 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
       wsClient.on("message", (data: Buffer | string) => {
         const rawPayload = data.toString();
         runtime.log?.(`[${account.accountId}] Received WS message: ${rawPayload.substring(0, 200)}...`);
-        
+
         // 使用消息队列确保顺序处理，避免竞态条件
         messageQueue?.enqueue(async () => {
           await processMessage({
@@ -441,7 +441,7 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
 
       wsClient.on("close", async (code, reason) => {
         runtime.log?.(`[${account.accountId}] WebSocket closed. Code: ${code}, Reason: ${reason}`);
-        
+
         // 清理资源
         if (pingInterval) {
           clearInterval(pingInterval);
@@ -451,7 +451,7 @@ export async function monitorProvider(options: MonitorOptions): Promise<void> {
           messageQueue.clear();
           messageQueue = null;
         }
-        
+
         if (!isAborted && reconnectAttempts < WS_MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts++;
           const backoff = Math.min(WS_RECONNECT_BASE_DELAY_MS * Math.pow(2, reconnectAttempts), 30000);

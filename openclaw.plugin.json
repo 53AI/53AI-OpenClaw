@@ -19,7 +19,7 @@
         "type": "string",
         "description": "53AIHub App Secret / Token (Alias)"
       },
-      "websocketUrl": {
+      "WSUrl": {
         "type": "string",
         "description": "53AIHub WebSocket 连接地址"
       },

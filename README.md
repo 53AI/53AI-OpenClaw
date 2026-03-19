@@ -83,9 +83,9 @@ openclaw gateway restart
 sudo systemctl restart openclaw-gateway
 
 # 配置必要参数
-openclaw config set channels.53aihub.botId "智能体详情的botId"
-openclaw config set channels.53aihub.secret "智能体详情的botId对应的secret"
-openclaw config set channels.53aihub.websocketUrl "ws://域名/api/v1/openclaw/ws/connect"
+openclaw config set channels.53aihub.botId "智能体的botId"
+openclaw config set channels.53aihub.secret "智能体对应的secret"
+openclaw config set channels.53aihub.WSUrl "ws:/你的域名/api/v1/openclaw/ws/connect"
 
 # 启用通道
 openclaw config set channels.53aihub.enabled true
@@ -97,7 +97,7 @@ openclaw config set channels.53aihub.enabled true
 |------|------|--------|------|
 | `botId` | 是 | - | 53AIHub 智能体 ID  |
 | `secret` | 是 | - | 53AIHub Secret |
-| `websocketUrl` | 是 | - | 53AIHub 长连接连接地址 |
+| `WSUrl` | 是 | - | 53AIHub 长连接连接地址 |
 | `token` | 否 | - | secret 的别名，与 secret 二选一 |
 | `enabled` | 否 | false | 是否启用通道 |
 | `accessPolicy` | 否 | `open` | 访问策略: `open`=开放所有用户, `allowlist`=仅白名单用户, `pairing`=首次使用需审批, `disabled`=禁用 |
@@ -407,7 +407,7 @@ npm test
 
 ### WebSocket 连接失败
 
-1. 检查 `websocketUrl` 格式是否正确
+1. 检查 `WSUrl` 格式是否正确
 2. 确认网络可达性
 3. 检查 `botId` 和 `secret` 是否正确
 

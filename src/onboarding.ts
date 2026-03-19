@@ -49,14 +49,14 @@ async function promptSecret(
   ).trim();
 }
 
-async function promptWebsocketUrl(
+async function promptWSUrl(
   prompter: WizardPrompter,
   account: ReturnType<typeof resolveAccount> | null,
 ): Promise<string> {
   return String(
     await prompter.text({
       message: "WebSocket URL (例如: ws://localhost:8080/ws)",
-      initialValue: account?.websocketUrl ?? "",
+      initialValue: account?.WSUrl ?? "",
       validate: (value) => {
         const trimmed = value?.trim();
         if (!trimmed) return undefined;
@@ -142,12 +142,12 @@ export const aiHubOnboardingAdapter: ChannelOnboardingAdapter = {
 
     const botId = await promptBotId(prompter, account);
     const secret = await promptSecret(prompter, account);
-    const websocketUrl = await promptWebsocketUrl(prompter, account);
+    const WSUrl = await promptWSUrl(prompter, account);
 
     const cfgWithAccount = setAccount(cfg, {
       botId,
       secret,
-      websocketUrl: websocketUrl || undefined,
+      WSUrl: WSUrl || undefined,
       enabled: true,
       accessPolicy: account.config.accessPolicy ?? "open",
       allowFrom: account.config.allowFrom ?? [],

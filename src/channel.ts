@@ -82,7 +82,7 @@ export const aiHubPlugin: ChannelPlugin<ResolvedAccount> = {
       enabled: account.enabled,
       configured: Boolean(account.botId?.trim() || account.token?.trim()),
       botId: account.botId,
-      websocketUrl: account.websocketUrl,
+      WSUrl: account.WSUrl,
       accessPolicy: account.config.accessPolicy ?? "open",
     }),
     resolveAllowFrom: ({ cfg }) => {
@@ -108,13 +108,13 @@ export const aiHubPlugin: ChannelPlugin<ResolvedAccount> = {
     collectWarnings: ({ account }) => {
       const warnings: string[] = [];
       const accessPolicy = account.config.accessPolicy ?? "open";
-      
+
       if (accessPolicy === "open") {
         warnings.push(
           `- 访问策略为 "open"，所有用户都可以使用机器人`
         );
       }
-      
+
       return warnings;
     },
   },
@@ -143,7 +143,7 @@ export const aiHubPlugin: ChannelPlugin<ResolvedAccount> = {
       if (!wsClient) {
         throw new Error(`[53aihub] WS Client not connected for account ${accountId}`);
       }
-      
+
       const channelPrefix = new RegExp(`^${CHANNEL_ID}:`, "i");
       const targetId = to.replace(channelPrefix, "");
 
@@ -164,8 +164,8 @@ export const aiHubPlugin: ChannelPlugin<ResolvedAccount> = {
 
       const restAny = rest as Record<string, unknown>;
       const mediaType = restAny.mediaType as string | undefined;
-      
-      const isImage = mediaType?.startsWith("image/") || 
+
+      const isImage = mediaType?.startsWith("image/") ||
         mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i);
       const mediaCategory = isImage ? "image" : "file";
 
@@ -190,7 +190,7 @@ export const aiHubPlugin: ChannelPlugin<ResolvedAccount> = {
       accounts.flatMap((entry) => {
         const accountId = String(entry.accountId ?? DEFAULT_ACCOUNT_ID);
         if (!entry.enabled) return [];
-        
+
         const issues: ChannelStatusIssue[] = [];
         if (!entry.configured) {
           issues.push({
