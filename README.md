@@ -161,10 +161,10 @@ openclaw gateway logs | grep -i 53aihub
   msgId: "msg-xxx",
   chatId: "user-123",
   text: "这张图片是什么？",
-  imageUrls: ["https://example.com/image.png"],
+  imageUrls: ["https://hub.53ai.com/image.png"],
   contentItems: [
     { type: "text", text: "这张图片是什么？" },
-    { type: "image", image: { url: "https://example.com/image.png" } }
+    { type: "image", image: { url: "https://hub.53ai.com/image.png" } }
   ]
 }
 ```
@@ -175,10 +175,10 @@ openclaw gateway logs | grep -i 53aihub
   type: "message",
   msgId: "msg-xxx",
   text: "请分析这个文档",
-  fileUrls: ["https://example.com/document.pdf"],
+  fileUrls: ["https://hub.53ai.com/document.pdf"],
   contentItems: [
     { type: "text", text: "请分析这个文档" },
-    { type: "file", file: { url: "https://example.com/document.pdf", filename: "document.pdf" } }
+    { type: "file", file: { url: "https://hub.53ai.com/document.pdf", filename: "document.pdf" } }
   ]
 }
 ```
@@ -193,7 +193,7 @@ import { sendMediaMessage } from "./message-sender.js";
 
 await sendMediaMessage(wsClient, "user-123", {
   type: "image",
-  url: "https://example.com/generated-image.png",
+  url: "https://hub.53ai.com/generated-image.png",
   mimeType: "image/png"
 }, "这是生成的图片");
 ```
@@ -202,7 +202,7 @@ await sendMediaMessage(wsClient, "user-123", {
 ```typescript
 await sendMediaMessage(wsClient, "user-123", {
   type: "file",
-  url: "https://example.com/report.pdf",
+  url: "https://hub.53ai.com/report.pdf",
   filename: "report.pdf",
   mimeType: "application/pdf"
 }, "分析报告已生成");
@@ -230,7 +230,7 @@ await sendMediaMessage(wsClient, "user-123", {
     "text": "这是图片描述",
     "media": {
       "type": "image",
-      "url": "https://example.com/image.png",
+      "url": "https://hub.53ai.com/image.png",
       "mimeType": "image/png"
     }
   }
