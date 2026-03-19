@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.7] - 2026-03-19
+
+### Changed
+- 规范配置项命名：将 `websocketUrl` 统一更名为 `WSUrl`。
+- 文档更新：优化了 README.md 中的参数说明。
+
 ## [1.0.6] - 2026-03-19
 
 ### Changed
