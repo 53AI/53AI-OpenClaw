@@ -1,10 +1,10 @@
-# 53AI OpenClaw 插件
+# 53AI-OpenClaw
 
-53AI OpenClaw 插件是 OpenClaw 接入53AI Hub 的通道插件。
+53AI-OpenClaw 是 OpenClaw 接入53AI Hub 的通道插件。
 
 ## 功能
 
-- 将 53AIHub/AgentHub 智能体接入 OpenClaw
+- 将  OpenClaw 接入53AIHub
 - 支持直接消息 (DM) 模式
 - 支持 WebSocket 实时通信
 - **支持多模态消息**（图片、文件）
@@ -95,9 +95,9 @@ openclaw config set channels.53aihub.enabled true
 
 | 参数 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `botId` | 是 | - | AgentHub 智能体 ID (HashID) |
-| `secret` | 是 | - | AgentHub App Secret / Token |
-| `websocketUrl` | 是 | - | AgentHub WebSocket 连接地址 |
+| `botId` | 是 | - | 53AIHub 智能体 ID (HashID) |
+| `secret` | 是 | - | 53AIHub App Secret / Token |
+| `websocketUrl` | 是 | - | 53AIHub WebSocket 连接地址 |
 | `token` | 否 | - | secret 的别名，与 secret 二选一 |
 | `enabled` | 否 | false | 是否启用通道 |
 | `accessPolicy` | 否 | `open` | 访问策略: `open`=开放所有用户, `allowlist`=仅白名单用户, `pairing`=首次使用需审批, `disabled`=禁用 |
@@ -154,7 +154,7 @@ openclaw gateway logs | grep -i 53aihub
 
 当用户发送包含图片或文件的消息时，插件会自动解析并处理：
 
-**用户发送图片** → 插件接收 `AgentHubIncomingMessage`:
+**用户发送图片** → 插件接收 `53AIHubIncomingMessage`:
 ```typescript
 {
   type: "message",

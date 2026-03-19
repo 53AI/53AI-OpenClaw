@@ -18,7 +18,7 @@ import { aiHubOnboardingAdapter } from "./onboarding.js";
 const meta = {
   id: CHANNEL_ID,
   label: "53AIHub",
-  selectionLabel: "53AIHub (AgentHub)",
+  selectionLabel: "53AIHub (53AIHub)",
   detailLabel: "53AIHub 智能机器人",
   docsPath: `/channels/${CHANNEL_ID}`,
   docsLabel: CHANNEL_ID,

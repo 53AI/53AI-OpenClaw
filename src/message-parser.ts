@@ -1,4 +1,4 @@
-import type { AgentHubIncomingMessage, AgentHubWsMessage, MessageContentItem, OpenAIChatRequest, AgentHubMessageData } from "./interface.js";
+import type { 53AIHubIncomingMessage, 53AIHubWsMessage, MessageContentItem, OpenAIChatRequest, 53AIHubMessageData } from "./interface.js";
 
 export interface ParsedMessageContent {
   textParts: string[];
@@ -87,9 +87,9 @@ function extractFilesFromContent(content: unknown): { urls: string[]; items: Mes
   return { urls, items };
 }
 
-export function parseIncomingMessage(rawJson: string): AgentHubIncomingMessage | null {
+export function parseIncomingMessage(rawJson: string): 53AIHubIncomingMessage | null {
   try {
-    const wsMsg = JSON.parse(rawJson) as AgentHubWsMessage;
+    const wsMsg = JSON.parse(rawJson) as 53AIHubWsMessage;
     
     if (wsMsg.action === "ping" || wsMsg.action === "pong") {
       return null;
@@ -126,7 +126,7 @@ export function parseIncomingMessage(rawJson: string): AgentHubIncomingMessage |
     }
 
     // 处理非标准格式的消息 (action === "message")
-    const data = wsMsg.data as AgentHubMessageData;
+    const data = wsMsg.data as 53AIHubMessageData;
     const dataRecord = data as Record<string, unknown>;
     const rawImages = dataRecord.images;
     const rawFiles = dataRecord.files;
@@ -160,7 +160,7 @@ export function parseIncomingMessage(rawJson: string): AgentHubIncomingMessage |
   }
 }
 
-export function parseMessageContent(msg: AgentHubIncomingMessage): ParsedMessageContent {
+export function parseMessageContent(msg: 53AIHubIncomingMessage): ParsedMessageContent {
   const textParts: string[] = [];
   const imageUrls: string[] = [];
   const fileUrls: string[] = [];

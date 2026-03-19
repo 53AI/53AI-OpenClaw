@@ -12,7 +12,7 @@ import {
   MEDIA_DOCUMENT_PLACEHOLDER,
   THINKING_MESSAGE,
 } from "./const.js";
-import type { MonitorOptions, MessageState, AgentHubIncomingMessage, AgentHubWsMessage } from "./interface.js";
+import type { MonitorOptions, MessageState, 53AIHubIncomingMessage, 53AIHubWsMessage } from "./interface.js";
 import { ErrorCode, inferErrorCode } from "./interface.js";
 import { parseIncomingMessage, parseMessageContent } from "./message-parser.js";
 import { sendReply, sendThinkingMessage } from "./message-sender.js";
@@ -70,7 +70,7 @@ class MessageQueue {
 }
 
 function buildMessageContext(
-  body: AgentHubIncomingMessage,
+  body: 53AIHubIncomingMessage,
   account: ResolvedAccount,
   config: OpenClawConfig,
   mediaList: Array<{ path: string; contentType?: string }>,
