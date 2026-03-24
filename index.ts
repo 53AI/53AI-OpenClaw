@@ -3,6 +3,7 @@ import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 
 import { aiHubPlugin } from "./src/channel.js";
 import { setRuntime } from "./src/runtime.js";
+import { handleBeforeCompaction, handleAfterCompaction } from "./src/compaction-hooks.js";
 
 const plugin = {
   id: "53aihub-openclaw-plugin",
@@ -12,6 +13,8 @@ const plugin = {
   register(api: OpenClawPluginApi) {
     setRuntime(api.runtime);
     api.registerChannel({ plugin: aiHubPlugin });
+    api.on("before_compaction", handleBeforeCompaction);
+    api.on("after_compaction", handleAfterCompaction);
   },
 };
 

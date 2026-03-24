@@ -197,7 +197,6 @@ async function processMessage(params: {
         cfg: config,
         dispatcherOptions: {
           deliver: async (payload, info) => {
-            state.accumulatedText += payload.text;
             runtime.log?.(`[53aihub] deliver: kind=${info.kind}, textLen=${payload.text?.length || 0}, accumulatedLen=${state.accumulatedText.length}, isError=${payload.isError}`);
 
             if (payload.isError) {
@@ -218,6 +217,26 @@ async function processMessage(params: {
               });
               return;
             }
+
+            const isCompaction = payload.text?.startsWith("🧹 Compacting context") || 
+                                 state.accumulatedText.startsWith("🧹 Compacting context");
+            
+            if (isCompaction && info.kind !== "final") {
+              runtime.log?.(`[53aihub] deliver COMPACTION: text preview=${payload.text?.substring(0, 50)}...`);
+              await sendReply({
+                wsClient,
+                text: payload.text || "",
+                toChatId: chatId,
+                replyToMsgId: body.msgId,
+                runtime,
+                finish: false,
+                streamId: state.streamId,
+                isThinking: true,
+              });
+              return;
+            }
+
+            state.accumulatedText += payload.text;
 
             if (info.kind !== "final") {
               runtime.log?.(`[53aihub] deliver STREAMING: accumulatedText preview=${state.accumulatedText.substring(0, 50)}...`);

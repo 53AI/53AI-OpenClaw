@@ -14,10 +14,11 @@ interface SendReplyParams {
   isError?: boolean;
   errorCode?: ErrorCode | string;
   errorDetails?: string;
+  isThinking?: boolean;
 }
 
 export async function sendReply(params: SendReplyParams): Promise<void> {
-  const { wsClient, text, toChatId, replyToMsgId, runtime, finish, streamId, isError, errorCode, errorDetails } = params;
+  const { wsClient, text, toChatId, replyToMsgId, runtime, finish, streamId, isError, errorCode, errorDetails, isThinking } = params;
 
   const reqId = replyToMsgId || streamId;
 
@@ -88,7 +89,7 @@ export async function sendReply(params: SendReplyParams): Promise<void> {
   const payload: AgentHubWsMessage = {
     req_id: reqId,
     action: "chat",
-    status: finish ? "done" : "streaming",
+    status: finish ? "done" : isThinking ? "thinking" : "streaming",
     data: chunk,
   };
 
