@@ -1,6 +1,6 @@
 {
-  "name": "@53ai/53aihub-openclaw-plugin",
-  "version": "1.0.0",
+  "name": "@53ai/53ai-openclaw",
+  "version": "1.0.7",
   "type": "module",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
@@ -8,43 +8,40 @@
   "files": [
     "dist",
     "openclaw.plugin.json",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "publish:release": "npm run prebuild && npm run build && npm publish"
+    "test": "echo \"No tests configured\" && exit 0",
+    "prepublishOnly": "npm run build",
+    "release": "bash scripts/publish.sh",
+    "release:patch": "bash scripts/publish.sh patch",
+    "release:minor": "bash scripts/publish.sh minor",
+    "release:major": "bash scripts/publish.sh major"
   },
   "keywords": [
-    "53aihub",
+    "53ai",
     "openclaw",
-    "53aihub-openclaw-plugin"
+    "53ai-openclaw",
+    "agent",
+    "chatbot",
+    "websocket"
   ],
-  "author": "",
+  "author": "53AI",
   "license": "MIT",
-  "description": "OpenClaw 53aihub (AgentHub) channel plugin",
-  "openclaw": {
-    "extensions": [
-      "./dist/index.esm.js"
-    ],
-    "channel": {
-      "id": "53aihub",
-      "label": "53AIHub",
-      "selectionLabel": "53AIHub (AgentHub)",
-      "docsPath": "/channels/53aihub",
-      "docsLabel": "53aihub-openclaw-plugin",
-      "blurb": "53AIHub 智能机器人接入插件",
-      "order": 90,
-      "quickstartAllowFrom": true
-    },
-    "install": {
-      "npmSpec": "@53ai/53aihub-openclaw-plugin",
-      "localPath": "extensions/53aihub-openclaw-plugin",
-      "defaultChoice": "npm"
-    }
+  "description": "OpenClaw 53AI channel plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/53AI/53ai-openclaw.git"
   },
+  "bugs": {
+    "url": "https://github.com/53AI/53ai-openclaw/issues"
+  },
+  "homepage": "https://github.com/53AI/53ai-openclaw#readme",
   "dependencies": {
     "ws": "^8.16.0"
   },

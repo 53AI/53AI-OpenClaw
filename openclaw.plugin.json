@@ -1,5 +1,5 @@
 {
-  "id": "53aihub-openclaw-plugin",
+  "id": "53ai-openclaw",
   "channels": [
     "53aihub"
   ],
@@ -9,23 +9,27 @@
     "properties": {
       "botId": {
         "type": "string",
-        "description": "AgentHub 智能体 ID (HashID)"
+        "description": "53AIHub 智能体 ID (HashID)"
       },
       "secret": {
         "type": "string",
-        "description": "AgentHub App Secret / Token"
+        "description": "53AIHub App Secret / Token"
       },
       "token": {
         "type": "string",
-        "description": "AgentHub App Secret / Token (Alias)"
+        "description": "53AIHub App Secret / Token (Alias)"
       },
-      "websocketUrl": {
+      "WSUrl": {
         "type": "string",
-        "description": "AgentHub WebSocket 连接地址"
+        "description": "53AIHub WebSocket 连接地址"
       },
       "accessPolicy": {
         "type": "string",
-        "enum": ["open", "allowlist", "pairing"],
+        "enum": [
+          "open",
+          "allowlist",
+          "pairing"
+        ],
         "default": "open",
         "description": "访问策略: open=开放所有用户, allowlist=仅白名单用户, pairing=首次使用需审批"
       },

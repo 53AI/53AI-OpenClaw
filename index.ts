@@ -6,9 +6,9 @@ import { setRuntime } from "./src/runtime.js";
 import { handleBeforeCompaction, handleAfterCompaction } from "./src/compaction-hooks.js";
 
 const plugin = {
-  id: "53aihub-openclaw-plugin",
-  name: "53AIHub",
-  description: "53AIHub (AgentHub) OpenClaw 插件",
+  id: "53ai-openclaw",
+  name: "53AI OpenClaw",
+  description: "53AIHub (53AIHub) OpenClaw 插件",
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
     setRuntime(api.runtime);

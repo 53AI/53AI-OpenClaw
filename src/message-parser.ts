@@ -1,4 +1,4 @@
-import type { AgentHubIncomingMessage, AgentHubWsMessage, MessageContentItem } from "./interface.js";
+import type { Hub53AIIncomingMessage, Hub53AIWsMessage, MessageContentItem, OpenAIChatRequest, MessageData } from "./interface.js";
 
 export interface ParsedMessageContent {
   textParts: string[];
@@ -13,7 +13,7 @@ function extractTextFromContent(content: unknown): string {
   }
   if (Array.isArray(content)) {
     return content
-      .filter((item): item is { type: string; text?: string } => 
+      .filter((item): item is { type: string; text?: string } =>
         typeof item === "object" && item !== null && item.type === "text"
       )
       .map((item) => item.text || "")
@@ -29,21 +29,27 @@ function extractImagesFromContent(content: unknown): { urls: string[]; items: Me
   if (Array.isArray(content)) {
     for (const item of content) {
       if (typeof item !== "object" || item === null) continue;
-      
-      if (item.type === "image_url" && item.image_url?.url) {
-        urls.push(item.image_url.url);
+
+      const itemRecord = item as Record<string, unknown>;
+
+      if (itemRecord.type === "image_url" &&
+        typeof itemRecord.image_url === "object" &&
+        itemRecord.image_url !== null &&
+        "url" in itemRecord.image_url) {
+        const url = String((itemRecord.image_url as Record<string, unknown>).url);
+        urls.push(url);
         items.push({
           type: "image",
-          image: { url: item.image_url.url },
+          image: { url },
         });
-      } else if (item.type === "image" && (item.url || item.base64)) {
-        if (item.url) urls.push(item.url);
+      } else if (itemRecord.type === "image" && (itemRecord.url || itemRecord.base64)) {
+        if (typeof itemRecord.url === "string") urls.push(itemRecord.url);
         items.push({
           type: "image",
           image: {
-            url: item.url,
-            base64: item.base64,
-            mimeType: item.mimeType,
+            url: typeof itemRecord.url === "string" ? itemRecord.url : undefined,
+            base64: typeof itemRecord.base64 === "string" ? itemRecord.base64 : undefined,
+            mimeType: typeof itemRecord.mimeType === "string" ? itemRecord.mimeType : undefined,
           },
         });
       }
@@ -60,16 +66,18 @@ function extractFilesFromContent(content: unknown): { urls: string[]; items: Mes
   if (Array.isArray(content)) {
     for (const item of content) {
       if (typeof item !== "object" || item === null) continue;
-      
-      if (item.type === "file" && (item.url || item.base64)) {
-        if (item.url) urls.push(item.url);
+
+      const itemRecord = item as Record<string, unknown>;
+
+      if (itemRecord.type === "file" && (itemRecord.url || itemRecord.base64)) {
+        if (typeof itemRecord.url === "string") urls.push(itemRecord.url);
         items.push({
           type: "file",
           file: {
-            url: item.url,
-            base64: item.base64,
-            filename: item.filename,
-            mimeType: item.mimeType,
+            url: typeof itemRecord.url === "string" ? itemRecord.url : undefined,
+            base64: typeof itemRecord.base64 === "string" ? itemRecord.base64 : undefined,
+            filename: typeof itemRecord.filename === "string" ? itemRecord.filename : undefined,
+            mimeType: typeof itemRecord.mimeType === "string" ? itemRecord.mimeType : undefined,
           },
         });
       }
@@ -79,21 +87,21 @@ function extractFilesFromContent(content: unknown): { urls: string[]; items: Mes
   return { urls, items };
 }
 
-export function parseIncomingMessage(rawData: string): AgentHubIncomingMessage | null {
+export function parseIncomingMessage(rawJson: string): Hub53AIIncomingMessage | null {
   try {
-    const wsMsg: AgentHubWsMessage = JSON.parse(rawData);
-    
+    const wsMsg = JSON.parse(rawJson) as Hub53AIWsMessage;
+
     if (wsMsg.action === "ping" || wsMsg.action === "pong") {
       return null;
     }
 
     if (wsMsg.action === "chat") {
-      const openAIReq = wsMsg.data;
+      const openAIReq = wsMsg.data as OpenAIChatRequest;
       if (!openAIReq || !openAIReq.messages || !Array.isArray(openAIReq.messages)) {
         return null;
       }
 
-      const lastUserMsg = [...openAIReq.messages].reverse().find((m: any) => m.role === "user");
+      const lastUserMsg = [...openAIReq.messages].reverse().find((m) => m.role === "user");
       if (!lastUserMsg) return null;
 
       const userId = openAIReq.user || lastUserMsg.name || `user-${wsMsg.req_id}`;
@@ -117,26 +125,42 @@ export function parseIncomingMessage(rawData: string): AgentHubIncomingMessage |
       };
     }
 
-    const data = wsMsg as any;
-    const imageUrls = data.imageUrls || (data.images ? data.images.map((img: any) => img.url || img).filter(Boolean) : []);
-    const fileUrls = data.fileUrls || (data.files ? data.files.map((f: any) => f.url || f).filter(Boolean) : []);
-    
+    // 处理非标准格式的消息 (action === "message")
+    const data = wsMsg.data as MessageData;
+    const dataRecord = data as Record<string, unknown>;
+    const rawImages = dataRecord.images;
+    const rawFiles = dataRecord.files;
+
+    const imageUrls: string[] = data.imageUrls ||
+      (Array.isArray(rawImages) ? rawImages.map((img: unknown) => {
+        if (typeof img === "string") return img;
+        if (typeof img === "object" && img !== null && "url" in img) return String((img as Record<string, unknown>).url);
+        return "";
+      }).filter(Boolean) : []);
+
+    const fileUrls: string[] = data.fileUrls ||
+      (Array.isArray(rawFiles) ? rawFiles.map((f: unknown) => {
+        if (typeof f === "string") return f;
+        if (typeof f === "object" && f !== null && "url" in f) return String((f as Record<string, unknown>).url);
+        return "";
+      }).filter(Boolean) : []);
+
     return {
-      type: data.type || "message",
-      msgId: data.msgId || data.id || `msg-${Date.now()}`,
-      chatId: data.chatId || data.userId || "default-chat",
-      userId: data.userId || data.chatId || "default-user",
-      text: data.text || data.content || "",
+      type: (dataRecord.type as string) || "message",
+      msgId: (dataRecord.msgId as string) || (dataRecord.id as string) || `msg-${Date.now()}`,
+      chatId: (dataRecord.chatId as string) || (dataRecord.userId as string) || "default-chat",
+      userId: (dataRecord.userId as string) || (dataRecord.chatId as string) || "default-user",
+      text: (dataRecord.text as string) || (dataRecord.content as string) || "",
       imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       fileUrls: fileUrls.length > 0 ? fileUrls : undefined,
-      quoteContent: data.quoteContent,
+      quoteContent: dataRecord.quoteContent as string | undefined,
     };
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
-export function parseMessageContent(msg: AgentHubIncomingMessage): ParsedMessageContent {
+export function parseMessageContent(msg: Hub53AIIncomingMessage): ParsedMessageContent {
   const textParts: string[] = [];
   const imageUrls: string[] = [];
   const fileUrls: string[] = [];

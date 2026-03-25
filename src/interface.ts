@@ -6,13 +6,78 @@ import type { ResolvedAccount } from "./utils.js";
 // ============================================================================
 
 /**
+ * OpenAI 兼容的消息格式
+ */
+export interface OpenAIChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string | MessageContentItem[];
+  name?: string;
+}
+
+/**
+ * OpenAI 兼容的请求格式
+ */
+export interface OpenAIChatRequest {
+  model?: string;
+  messages: OpenAIChatMessage[];
+  user?: string;
+  conversation_id?: string;
+  stream?: boolean;
+}
+
+/**
+ * OpenAI 兼容的响应块格式
+ */
+export interface OpenAIChatCompletionChunk {
+  id: string;
+  object: "chat.completion.chunk";
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    delta: {
+      content?: string;
+      role?: string;
+    };
+    finish_reason: string | null;
+  }>;
+  error?: ResponseError;
+}
+
+/**
+ * 53AIHub 消息数据类型
+ */
+export interface MessageData {
+  toChatId?: string;
+  text?: string;
+  imageUrls?: string[];
+  fileUrls?: string[];
+  type?: string;
+  msgId?: string;
+  id?: string;
+  chatId?: string;
+  userId?: string;
+  content?: string;
+  quoteContent?: string;
+  images?: Array<{ url?: string }>;
+  files?: Array<{ url?: string }>;
+  media?: {
+    type: "image" | "file";
+    url?: string;
+    base64?: string;
+    mimeType?: string;
+    filename?: string;
+  };
+}
+
+/**
  * WebSocket 请求/响应消息基础格式
  */
-export interface AgentHubWsMessage {
+export interface Hub53AIWsMessage {
   req_id: string;
   action: "chat" | "message" | "ping" | "pong";
   status: "streaming" | "done" | "error" | "final" | "thinking";
-  data: any;
+  data: OpenAIChatRequest | OpenAIChatCompletionChunk | MessageData | null;
 }
 
 /**
@@ -54,7 +119,7 @@ export interface MessageContentItem {
 /**
  * 来自 Go 后端的消息
  */
-export interface AgentHubIncomingMessage {
+export interface Hub53AIIncomingMessage {
   type: string;
   msgId: string;
   chatId: string;
@@ -73,7 +138,7 @@ export interface AgentHubIncomingMessage {
 /**
  * 发送给 Go 后端的消息
  */
-export interface AgentHubOutgoingMessage {
+export interface Hub53AIOutgoingMessage {
   type: "reply" | "message";
   msgId?: string;
   chatId: string;
@@ -125,18 +190,18 @@ export enum ErrorCode {
   // 访问控制
   ACCESS_DENIED = "ACCESS_DENIED",
   PAIRING_REQUIRED = "PAIRING_REQUIRED",
-  
+
   // AI 服务错误
   RATE_LIMITED = "RATE_LIMITED",
   INSUFFICIENT_QUOTA = "INSUFFICIENT_QUOTA",
   MODEL_OVERLOADED = "MODEL_OVERLOADED",
   MODEL_NOT_FOUND = "MODEL_NOT_FOUND",
-  
+
   // 请求错误
   INVALID_REQUEST = "INVALID_REQUEST",
   CONTEXT_LENGTH_EXCEEDED = "CONTEXT_LENGTH_EXCEEDED",
   CONTENT_FILTERED = "CONTENT_FILTERED",
-  
+
   // 系统错误
   TIMEOUT = "TIMEOUT",
   INTERNAL_ERROR = "INTERNAL_ERROR",
@@ -178,7 +243,7 @@ export interface ResponseData {
  */
 export function inferErrorCode(errorText: string): ErrorCode {
   const text = errorText.toLowerCase();
-  
+
   if (text.includes("rate limit") || text.includes("429") || text.includes("too many requests")) {
     return ErrorCode.RATE_LIMITED;
   }
@@ -206,6 +271,6 @@ export function inferErrorCode(errorText: string): ErrorCode {
   if (text.includes("invalid") || text.includes("bad request")) {
     return ErrorCode.INVALID_REQUEST;
   }
-  
+
   return ErrorCode.INTERNAL_ERROR;
 }

@@ -23,13 +23,13 @@ export interface AIHubConfig {
   /** 访问令牌 */
   token?: string;
   /** WebSocket URL */
-  websocketUrl?: string;
-  
+  WSUrl?: string;
+
   /** 访问控制白名单 */
   allowFrom?: Array<string | number>;
   /** 访问策略: open=开放, allowlist=白名单, pairing=配对审批 */
   accessPolicy?: "open" | "allowlist" | "pairing" | "disabled";
-  
+
   /** 是否发送"思考中"消息 */
   sendThinkingMessage?: boolean;
 }
@@ -41,7 +41,7 @@ export interface ResolvedAccount {
   accountId: string;
   name: string;
   enabled: boolean;
-  websocketUrl: string;
+  WSUrl: string;
   botId: string;
   secret: string;
   token: string;
@@ -58,12 +58,12 @@ export interface ResolvedAccount {
  */
 export function resolveAccount(cfg: OpenClawConfig, accountId = DEFAULT_ACCOUNT_ID): ResolvedAccount {
   const config = (cfg.channels?.[CHANNEL_ID] ?? {}) as AIHubConfig;
-  
+
   return {
     accountId,
     name: config.name ?? "53AIHub",
     enabled: config.enabled !== false,
-    websocketUrl: config.websocketUrl || DEFAULT_WS_URL,
+    WSUrl: config.WSUrl || DEFAULT_WS_URL,
     botId: config.botId ?? config.userId ?? "",
     secret: config.secret ?? config.token ?? "",
     token: config.token ?? config.secret ?? "",
@@ -88,8 +88,8 @@ export function setAccount(
     allowFrom: account.allowFrom ?? existing.allowFrom,
     accessPolicy: account.accessPolicy ?? existing.accessPolicy,
     sendThinkingMessage: account.sendThinkingMessage ?? existing.sendThinkingMessage,
-    ...(account.websocketUrl || existing.websocketUrl
-      ? { websocketUrl: account.websocketUrl ?? existing.websocketUrl }
+    ...(account.WSUrl || existing.WSUrl
+      ? { WSUrl: account.WSUrl ?? existing.WSUrl }
       : {}),
     ...(account.name || existing.name
       ? { name: account.name ?? existing.name }
