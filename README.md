@@ -142,8 +142,8 @@ openclaw plugins list | grep 53aihub
 # 检查通道配置
 openclaw config get channels.53aihub
 
-# 检查 Gateway 日志
-openclaw gateway logs | grep -i 53aihub
+# 检查 Gateway 日志 (用户级服务)
+journalctl --user -u openclaw-gateway.service -f | grep -i 53aihub
 ```
 
 ## 多模态消息支持
@@ -397,7 +397,7 @@ npm test
 
 1. 确认 `openclaw.plugin.json` 存在于插件根目录
 2. 确认 `dist/` 目录包含编译后的文件
-3. 检查 Gateway 日志: `openclaw gateway logs`
+3. 检查 Gateway 日志: `journalctl --user -u openclaw-gateway.service -f`
 
 ### 通道未生效
 
