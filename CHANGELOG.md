@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.9] - 2026-03-26
+
+### Changed
+- 更新 `homepage` 字段为 `https://www.53ai.com`。
+
+## [1.0.8] - 2026-03-26
+
+### Added
+- 新增压缩前后钩子（`handleBeforeCompaction` / `handleAfterCompaction`），支持在会话消息压缩前后向用户发送状态通知。
+- 新增 `compaction-hooks.ts` 模块，实现从 `sessionKey` 解析 `chatId` 的逻辑，并对非本渠道会话自动跳过处理。
+- 消息发送逻辑新增思考状态（thinking）支持，压缩过程中可向用户推送"正在整理对话记忆"等提示。
+
+### Changed
+- `message-sender.ts`：优化消息发送调用，支持传递思考状态标志。
+- `monitor.ts`：增强监控逻辑以适配压缩钩子的事件上报。
+
 ## [1.0.7] - 2026-03-19
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "@53ai/53ai-openclaw",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "type": "module",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
@@ -41,7 +41,7 @@
   "bugs": {
     "url": "https://github.com/53AI/53ai-openclaw/issues"
   },
-  "homepage": "https://github.com/53AI/53ai-openclaw#readme",
+  "homepage": "https://www.53ai.com",
   "dependencies": {
     "ws": "^8.16.0"
   },
