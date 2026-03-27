@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.0] - 2026-03-27
+
+### Added
+- 新增 `message-cache.ts` 模块，实现按账号隔离的消息缓存、重试机制与重连后的消息回放能力。
+- 新增 `MESSAGE_CACHE_TTL_MS` 常量配置，用于统一控制消息缓存保留时长。
+
+### Changed
+- `monitor.ts`：消息队列从全局串行改为按 `chatId` 分队列处理，实现同会话串行、跨会话并行，并在队列空闲时自动回收。
+- `monitor.ts`：发送链路接入缓存感知发送器，WebSocket 不可用或发送失败时自动缓存消息，连接恢复后自动回放。
+- `monitor.ts` / `state-manager.ts`：重连上限和预热失败场景默认保留缓存，便于外部恢复后继续补发消息。
+
+### Fixed
+- `message-sender.ts`：`sendReply` 与 `sendThinkingMessage` 在 WebSocket 未就绪时改为抛出错误，避免发送失败被静默忽略。
+- `message-cache.ts`：缓存满时优先淘汰非终态消息，降低最终完成态消息被淘汰导致会话状态不完整的风险。
+
 ## [1.0.9] - 2026-03-26
 
 ### Changed
