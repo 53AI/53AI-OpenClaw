@@ -25,8 +25,9 @@ export async function sendReply(params: SendReplyParams): Promise<void> {
   runtime.log?.(`[53aihub] sendReply START: reqId=${reqId}, finish=${finish}, isError=${isError}, textLen=${text?.length || 0}, wsReadyState=${wsClient.readyState}`);
 
   if (wsClient.readyState !== 1) {
-    runtime.error?.(`[53aihub] WebSocket is not open (readyState=${wsClient.readyState}). Cannot send message to ${toChatId}`);
-    return;
+    const errorMsg = `WebSocket not connected (readyState=${wsClient.readyState}), cannot send message to ${toChatId}`;
+    runtime.error?.(`[53aihub] ${errorMsg}`);
+    throw new Error(`[53aihub] ${errorMsg}`);
   }
 
   if (isError) {
@@ -173,8 +174,9 @@ export async function sendThinkingMessage(
   runtime?.log?.(`[53aihub] sendThinkingMessage CALLED: msgId=${msgId}, streamId=${streamId}, text=${text}, wsReadyState=${wsState}`);
 
   if (wsState !== 1) {
-    runtime?.error?.(`[53aihub] sendThinkingMessage SKIPPED: WebSocket not ready (state=${wsState})`);
-    return;
+    const errorMsg = `WebSocket not ready (state=${wsState})`;
+    runtime?.error?.(`[53aihub] sendThinkingMessage FAILED: ${errorMsg}`);
+    throw new Error(`[53aihub] ${errorMsg}`);
   }
 
   // 使用 OpenAI 兼容格式，确保 Go 后端能正确解析

@@ -123,7 +123,7 @@ export async function flushReqIdStore(accountId = "default"): Promise<void> {
   if (store) await store.flush();
 }
 
-export async function cleanupAccount(accountId: string): Promise<void> {
+export async function cleanupAccount(accountId: string, clearCache = false): Promise<void> {
   const wsClient = wsClientInstances.get(accountId);
   if (wsClient) {
     try {
@@ -135,6 +135,11 @@ export async function cleanupAccount(accountId: string): Promise<void> {
   }
   const store = reqIdStores.get(accountId);
   if (store) await store.flush();
+  
+  if (clearCache) {
+    const { clearAccountCache } = await import("./message-cache.js");
+    clearAccountCache(accountId);
+  }
 }
 
 export async function cleanupAll(): Promise<void> {
