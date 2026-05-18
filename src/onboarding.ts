@@ -69,6 +69,16 @@ async function promptWSUrl(
   ).trim();
 }
 
+async function promptSendThinkingMessage(
+  prompter: WizardPrompter,
+  account: ReturnType<typeof resolveAccount> | null,
+): Promise<boolean> {
+  return await prompter.confirm({
+    message: "Send a thinking message while the agent is processing?",
+    initialValue: account?.sendThinkingMessage ?? true,
+  });
+}
+
 function setAccessPolicy(
   cfg: OpenClawConfig,
   accessPolicy: "pairing" | "allowlist" | "open" | "disabled",
@@ -143,6 +153,7 @@ export const aiHubOnboardingAdapter: ChannelOnboardingAdapter = {
     const botId = await promptBotId(prompter, account);
     const secret = await promptSecret(prompter, account);
     const WSUrl = await promptWSUrl(prompter, account);
+    const sendThinkingMessage = await promptSendThinkingMessage(prompter, account);
 
     const cfgWithAccount = setAccount(cfg, {
       botId,
@@ -151,7 +162,7 @@ export const aiHubOnboardingAdapter: ChannelOnboardingAdapter = {
       enabled: true,
       accessPolicy: account.config.accessPolicy ?? "open",
       allowFrom: account.config.allowFrom ?? [],
-      sendThinkingMessage: account.sendThinkingMessage ?? true,
+      sendThinkingMessage,
     });
 
     return { cfg: cfgWithAccount };
