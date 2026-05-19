@@ -26,8 +26,35 @@ export const WS_RECONNECT_BASE_DELAY_MS = 1000;
 /** 文本分块限制 */
 export const TEXT_CHUNK_LIMIT = 4000;
 
-/** 消息处理超时（毫秒） */
-export const MESSAGE_PROCESS_TIMEOUT_MS = 120000;
+/**
+ * 请求分析软阈值（毫秒）
+ * 超过该时间后只告警并继续等待，不直接中断长分析任务。
+ */
+export const REQUEST_ANALYSIS_TIMEOUT_MS = 600000;
+
+/**
+ * 读取请求分析软阈值的运行时覆盖值。
+ * 仅用于本地或特定部署快速调参；未设置时回退到默认值。
+ */
+export function getRequestAnalysisTimeoutMs(): number {
+  const raw = process.env.OPENCLAW_REQUEST_ANALYSIS_TIMEOUT_MS?.trim();
+  if (!raw) {
+    return REQUEST_ANALYSIS_TIMEOUT_MS;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return REQUEST_ANALYSIS_TIMEOUT_MS;
+  }
+
+  return parsed;
+}
+
+/**
+ * 消息处理超时（毫秒）
+ * 保留旧常量名作为兼容别名，避免其他模块后续仍引用时出问题。
+ */
+export const MESSAGE_PROCESS_TIMEOUT_MS = REQUEST_ANALYSIS_TIMEOUT_MS;
 
 /**
  * 消息缓存 TTL（毫秒）
