@@ -4,7 +4,7 @@ import { getRuntime } from "./runtime.js";
 import type { ResolvedAccount } from "./utils.js";
 import {
   CHANNEL_ID,
-  MESSAGE_PROCESS_TIMEOUT_MS,
+  getRequestAnalysisTimeoutMs,
   WS_HEARTBEAT_INTERVAL_MS,
   WS_MAX_RECONNECT_ATTEMPTS,
   WS_RECONNECT_BASE_DELAY_MS,
@@ -26,7 +26,6 @@ import {
   setLastMsgIdForChat,
   warmupReqIdStore,
 } from "./state-manager.js";
-import { withTimeout } from "./timeout.js";
 import { downloadAndSaveImages, downloadAndSaveFiles } from "./media-handler.js";
 import { sendWithCache, replayCachedMessages } from "./message-cache.js";
 import type { CachedSendParams } from "./message-cache.js";
@@ -240,6 +239,8 @@ async function processMessage(params: {
   const ctxPayload = buildMessageContext(body, account, config, mediaList);
 
   let cleanedUp = false;
+  let analysisTimeoutTimer: NodeJS.Timeout | null = null;
+  const analysisTimeoutMs = getRequestAnalysisTimeoutMs();
   const safeCleanup = () => {
     if (!cleanedUp) {
       cleanedUp = true;
@@ -250,80 +251,93 @@ async function processMessage(params: {
   runtime.log?.(`[53aihub] processMessage: Starting dispatchReplyWithBufferedBlockDispatcher for msgId=${body.msgId}`);
 
   try {
-    await withTimeout(
-      core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
-        ctx: ctxPayload,
-        cfg: config,
-        dispatcherOptions: {
-          deliver: async (payload, info) => {
-            runtime.log?.(`[53aihub] deliver: kind=${info.kind}, textLen=${payload.text?.length || 0}, accumulatedLen=${state.accumulatedText.length}, isError=${payload.isError}`);
+    analysisTimeoutTimer = setTimeout(() => {
+      runtime.log?.(
+        `[53aihub] processMessage: analysis exceeded soft threshold ${analysisTimeoutMs}ms for msgId=${body.msgId}, keep waiting for completion`
+      );
 
-            if (payload.isError) {
-              const errorMsg = payload.text || "Unknown error";
-              const errorCode = inferErrorCode(errorMsg);
-              runtime.error?.(`[53aihub] deliver ERROR: ${errorMsg}`);
-              await cachedSend({
-                text: `⚠️ ${errorMsg}`,
-                toChatId: chatId,
-                replyToMsgId: body.msgId,
-                finish: true,
-                streamId: state.streamId,
-                isError: true,
-                errorCode,
-                errorDetails: errorMsg,
-              });
-              return;
-            }
+      if (wsClient.readyState !== WebSocket.OPEN) {
+        return;
+      }
 
-            const isCompaction = payload.text?.startsWith("🧹 Compacting context") || 
-                                 state.accumulatedText.startsWith("🧹 Compacting context");
-            
-            if (isCompaction && info.kind !== "final") {
-              runtime.log?.(`[53aihub] deliver COMPACTION: text preview=${payload.text?.substring(0, 50)}...`);
-              await cachedSend({
-                text: payload.text || "",
-                toChatId: chatId,
-                replyToMsgId: body.msgId,
-                finish: false,
-                streamId: state.streamId,
-                isThinking: true,
-              });
-              return;
-            }
+      try {
+        wsClient.ping();
+        runtime.log?.(`[53aihub] processMessage: timeout keepalive ping sent for msgId=${body.msgId}`);
+      } catch (err) {
+        runtime.error?.(`[53aihub] processMessage: timeout keepalive ping failed for msgId=${body.msgId}: ${String(err)}`);
+      }
+    }, analysisTimeoutMs);
 
-            state.accumulatedText += payload.text;
+    await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+      ctx: ctxPayload,
+      cfg: config,
+      dispatcherOptions: {
+        deliver: async (payload, info) => {
+          runtime.log?.(`[53aihub] deliver: kind=${info.kind}, textLen=${payload.text?.length || 0}, accumulatedLen=${state.accumulatedText.length}, isError=${payload.isError}`);
 
-            if (info.kind !== "final") {
-              runtime.log?.(`[53aihub] deliver STREAMING: accumulatedText preview=${state.accumulatedText.substring(0, 50)}...`);
-              await cachedSend({
-                text: state.accumulatedText,
-                toChatId: chatId,
-                replyToMsgId: body.msgId,
-                finish: false,
-                streamId: state.streamId,
-              });
-            }
-          },
-          onError: async (err, info) => {
-            runtime.error?.(`[53aihub] onError: kind=${info.kind}, error=${String(err)}`);
-            const errorText = String(err);
-            const errorCode = inferErrorCode(errorText);
+          if (payload.isError) {
+            const errorMsg = payload.text || "Unknown error";
+            const errorCode = inferErrorCode(errorMsg);
+            runtime.error?.(`[53aihub] deliver ERROR: ${errorMsg}`);
             await cachedSend({
-              text: `⚠️ 系统错误: ${errorText}`,
+              text: `⚠️ ${errorMsg}`,
               toChatId: chatId,
               replyToMsgId: body.msgId,
               finish: true,
               streamId: state.streamId,
               isError: true,
               errorCode,
-              errorDetails: `kind=${info.kind}, error=${errorText}`,
+              errorDetails: errorMsg,
             });
-          },
+            return;
+          }
+
+          const isCompaction = payload.text?.startsWith("🧹 Compacting context") ||
+                               state.accumulatedText.startsWith("🧹 Compacting context");
+          
+          if (isCompaction && info.kind !== "final") {
+            runtime.log?.(`[53aihub] deliver COMPACTION: text preview=${payload.text?.substring(0, 50)}...`);
+            await cachedSend({
+              text: payload.text || "",
+              toChatId: chatId,
+              replyToMsgId: body.msgId,
+              finish: false,
+              streamId: state.streamId,
+              isThinking: true,
+            });
+            return;
+          }
+
+          state.accumulatedText += payload.text;
+
+          if (info.kind !== "final") {
+            runtime.log?.(`[53aihub] deliver STREAMING: accumulatedText preview=${state.accumulatedText.substring(0, 50)}...`);
+            await cachedSend({
+              text: state.accumulatedText,
+              toChatId: chatId,
+              replyToMsgId: body.msgId,
+              finish: false,
+              streamId: state.streamId,
+            });
+          }
         },
-      }),
-      MESSAGE_PROCESS_TIMEOUT_MS,
-      `Message processing timed out (msgId=${body.msgId})`
-    );
+        onError: async (err, info) => {
+          runtime.error?.(`[53aihub] onError: kind=${info.kind}, error=${String(err)}`);
+          const errorText = String(err);
+          const errorCode = inferErrorCode(errorText);
+          await cachedSend({
+            text: `⚠️ 系统错误: ${errorText}`,
+            toChatId: chatId,
+            replyToMsgId: body.msgId,
+            finish: true,
+            streamId: state.streamId,
+            isError: true,
+            errorCode,
+            errorDetails: `kind=${info.kind}, error=${errorText}`,
+          });
+        },
+      },
+    });
 
     runtime.log?.(`[53aihub] processMessage: dispatchReply completed, accumulatedTextLen=${state.accumulatedText.length}`);
 
@@ -371,6 +385,11 @@ async function processMessage(params: {
     }
 
     safeCleanup();
+  } finally {
+    if (analysisTimeoutTimer) {
+      clearTimeout(analysisTimeoutTimer);
+      analysisTimeoutTimer = null;
+    }
   }
 }
 
