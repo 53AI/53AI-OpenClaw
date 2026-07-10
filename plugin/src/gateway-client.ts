@@ -495,17 +495,25 @@ export function resolveGatewayConfig(config: Partial<GatewayConfig>): GatewayCon
 
 function createTransport(config: GatewayConfig): RpcTransport {
   const officialModulePath = resolveOfficialGatewayClientModule(config.runtimeRoot);
-  if (officialModulePath && shouldUseOfficialGatewayClient(config)) {
+  const useOfficial = shouldUseOfficialGatewayClient(config);
+  console.info(`[gateway-transport] baseUrl=${config.baseUrl} officialModulePath=${officialModulePath} useOfficial=${useOfficial} portCheck=${new URL(config.baseUrl).port === "28789"}`);
+  if (officialModulePath && useOfficial) {
+    console.info(`[gateway-transport] USING official transport: ${officialModulePath}`);
     return createOfficialTransport(config, officialModulePath);
   }
+  console.info(`[gateway-transport] USING RpcSocketClient (officialModulePath=${!!officialModulePath} useOfficial=${useOfficial})`);
   return new RpcSocketClient(config);
 }
 
 function shouldUseOfficialGatewayClient(config: GatewayConfig): boolean {
   try {
     const url = new URL(config.baseUrl);
-    return url.port === "28789";
-  } catch {
+    const port = url.port;
+    const result = port === "28789";
+    console.info(`[gateway-shouldUseOfficial] url=${config.baseUrl} parsedPort=${port} is28789=${result}`);
+    return result;
+  } catch (err) {
+    console.info(`[gateway-shouldUseOfficial] url=${config.baseUrl} PARSE_ERROR: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
 }
@@ -520,15 +528,21 @@ function resolveOfficialGatewayClientModule(runtimeRoot?: string): string | null
   ].filter((value): value is string => Boolean(value));
 
   for (const candidate of candidates) {
-    if (!existsSync(candidate)) {
+    const exists = existsSync(candidate);
+    console.info(`[gateway-resolveModule] candidate=${candidate} exists=${exists}`);
+    if (!exists) {
       continue;
     }
     const file = readdirSync(candidate).find((entry) => /^client-.*\.js$/.test(entry));
+    console.info(`[gateway-resolveModule]  foundFile=${file}`);
     if (file) {
-      return join(candidate, file);
+      const fullPath = join(candidate, file);
+      console.info(`[gateway-resolveModule] RETURNING ${fullPath}`);
+      return fullPath;
     }
   }
 
+  console.info(`[gateway-resolveModule] RETURNING null (no module found)`);
   return null;
 }
 
@@ -544,14 +558,25 @@ function createOfficialTransport(config: GatewayConfig, modulePath: string): Rpc
     }
 
     clientPromise = (async () => {
+      console.info(`[gateway-official] importing module: ${modulePath}`);
       const module = (await import(pathToFileURL(modulePath).href)) as Record<string, unknown>;
+      const exportKeys = Object.keys(module);
+      console.info(`[gateway-official] module loaded, exports=${exportKeys.length} keys=${exportKeys.slice(0,15).join(",")}`);
       const GatewayClientCtor = resolveGatewayClientCtor(module);
+      console.info(`[gateway-official] resolveGatewayClientCtor type=${typeof GatewayClientCtor} name=${(GatewayClientCtor as any)?.name} proto=${GatewayClientCtor?.prototype?.constructor?.name}`);
+
+      // Log detailed export info if no constructor found
       if (!GatewayClientCtor) {
+        const typeSummary = exportKeys.map(k => `${k}:${typeof module[k]}`).join(", ");
+        console.info(`[gateway-official] NO CTOR FOUND. All exports: ${typeSummary}`);
         throw new Error(`could not locate GatewayClient export in ${modulePath}`);
       }
 
       return await new Promise<any>((resolve, reject) => {
-        const client = new GatewayClientCtor({
+        console.info(`[gateway-official] constructing GatewayClient with url=${config.baseUrl}`);
+        let client: any;
+        try {
+          client = new GatewayClientCtor({
           url: config.baseUrl,
           token: config.secret,
           clientName: "cli",
@@ -587,6 +612,17 @@ function createOfficialTransport(config: GatewayConfig, modulePath: string): Rpc
         });
 
         client.start();
+        console.info(`[gateway-official] client.start() called successfully`);
+      } catch (constructErr) {
+        const errMsg = constructErr instanceof Error ? constructErr.message : String(constructErr);
+        const errStack = constructErr instanceof Error ? constructErr.stack : "";
+        console.info(`[gateway-official] NEW/START FAILED: ${errMsg}`);
+        console.info(`[gateway-official] NEW/START FAILED stack: ${errStack}`);
+        console.info(`[gateway-official] GatewayClientCtor type=${typeof GatewayClientCtor} name=${(GatewayClientCtor as any)?.name}`);
+        console.info(`[gateway-official] GatewayClientCtor prototype=${Object.prototype.toString.call(GatewayClientCtor)}`);
+        reject(constructErr instanceof Error ? constructErr : new Error(String(constructErr)));
+        return;
+      }
       });
     })();
 
@@ -624,18 +660,25 @@ function createOfficialTransport(config: GatewayConfig, modulePath: string): Rpc
 
 function resolveGatewayClientCtor(module: Record<string, unknown>): (new (opts: any) => any) | null {
   const directCandidates = [module.GatewayClient, module.default, module.t];
-  for (const candidate of directCandidates) {
+  for (let i = 0; i < directCandidates.length; i++) {
+    const candidate = directCandidates[i];
+    const names = ["GatewayClient", "default", "t"];
+    console.info(`[gateway-resolveCtor] direct[${names[i]}] type=${typeof candidate} isFunction=${typeof candidate === "function"}`);
     if (typeof candidate === "function") {
       return candidate as new (opts: any) => any;
     }
   }
 
-  for (const candidate of Object.values(module)) {
+  const allValues = Object.values(module);
+  for (let i = 0; i < allValues.length; i++) {
+    const candidate = allValues[i];
     if (typeof candidate === "function") {
+      console.info(`[gateway-resolveCtor] fallback[${i}] key=${Object.keys(module)[i]} name=${(candidate as any).name} type=${typeof candidate}`);
       return candidate as new (opts: any) => any;
     }
   }
 
+  console.info(`[gateway-resolveCtor] NO FUNCTION FOUND in ${Object.keys(module).length} exports`);
   return null;
 }
 
@@ -2207,52 +2250,49 @@ function normalizeMessage(sessionId: string, payload: unknown, index = 0): Sessi
         }
       : {};
 
+  const hasTypedTranscript = Object.keys(typedTranscriptMeta).length > 0;
+  const hasSeq = seq > 0;
+
   return {
     id: `${sessionId}:${role}:${messageIdentity}`,
     sessionId,
     role,
     content,
     createdAt: toIsoString(message.timestamp ?? Date.now()),
-    ...(seq > 0
+    ...(hasSeq
       ? {
           seq,
           messageSeq: seq,
           message_seq: seq
         }
       : {}),
-    ...(Object.keys(existingPayload).length > 0 || Object.keys(typedTranscriptMeta).length > 0 || seq > 0
+    ...(Object.keys(existingPayload).length > 0 || hasTypedTranscript
       ? {
           payload: {
             ...existingPayload,
-            ...typedTranscriptMeta,
-            ...seqMeta
+            ...typedTranscriptMeta
           }
         }
       : {}),
-    ...(Object.keys(existingMetadata).length > 0 || Object.keys(typedTranscriptMeta).length > 0 || seq > 0
+    ...(Object.keys(existingMetadata).length > 0
       ? {
           metadata: {
-            ...existingMetadata,
-            ...typedTranscriptMeta,
-            ...seqMeta
+            ...existingMetadata
           }
         }
       : {}),
-    ...(Object.keys(existingData).length > 0 || Object.keys(typedTranscriptMeta).length > 0 || seq > 0
+    ...(Object.keys(existingData).length > 0
       ? {
           data: {
-            ...existingData,
-            ...typedTranscriptMeta,
-            ...seqMeta
+            ...existingData
           }
         }
       : {}),
-    ...(Object.keys(rawMeta).length > 0 || Object.keys(typedTranscriptMeta).length > 0 || seq > 0
+    ...(Object.keys(rawMeta).length > 0 || hasSeq
       ? {
           __openclaw: {
             ...rawMeta,
-            ...typedTranscriptMeta,
-            ...(seq > 0 ? { seq } : {})
+            ...(hasSeq ? { seq } : {})
           }
         }
       : {})
@@ -2397,7 +2437,11 @@ function historyEventSeq(rawSeq: number, localIndex: number, expanded: boolean):
     return rawSeq;
   }
   if (rawSeq > 0) {
-    return rawSeq * 10 + localIndex;
+    const composite = rawSeq * 10 + localIndex;
+    if (composite === Infinity || !Number.isSafeInteger(composite)) {
+      return rawSeq + localIndex;
+    }
+    return composite;
   }
   return localIndex;
 }
@@ -3205,7 +3249,8 @@ function isStaleChatFrame(frame: Extract<GatewayFrame, { type: "event" }>, subsc
 
   const payload = toRecord(frame.payload);
   const runId = typeof payload.runId === "string" ? payload.runId : "";
-  if (runId && subscription.activeRunIds.has(runId)) {
+  if (runId) {
+    subscription.activeRunIds.add(runId);
     return false;
   }
 

@@ -27,6 +27,13 @@ import {
   type LocalOutputFileSnapshot
 } from "./local-output-files";
 import type { SessionMessage, SessionStatus, TimelineEvent } from "./models";
+import {
+  applyHubUserMessagePatch,
+  isHubUserMessagePatch,
+  findHubUserMessagePatch,
+  mergeHubLocalAssistantMessages,
+  mergeHubUserMessageMetadata
+} from "./hub-message-utils";
 
 export type Hub53AIConfig = {
   enabled: boolean;
@@ -458,6 +465,8 @@ export function createHub53AIBridge(input: HubBridgeInput) {
   const syntheticEventsBySession = new Map<string, TimelineEvent[]>();
   const canonicalEventsBySession = new Map<string, TimelineEvent[]>();
   const ledgerSeqBySession = new Map<string, number>();
+  const backfillLockBySession = new Map<string, Promise<void>>();
+  const lastBackfillGatewaySeqBySession = new Map<string, number>();
   const ensuredRuntimeSkillsByKey = new Map<string, RuntimeSkillDisplayItem>();
   let persistStateQueue: Promise<void> = Promise.resolve();
   let persistStateTimer: NodeJS.Timeout | null = null;
@@ -755,8 +764,11 @@ export function createHub53AIBridge(input: HubBridgeInput) {
         : [];
       const rawPageMessages = sliceLatestWindowPage(messages, pagination.limit, pagination.offset);
       const boundaryPage = sliceLatestWindowPageWithTurnBoundary(messages, pagination.limit, pagination.offset);
-      const pageMessages = mergeHubUserMessageMetadata(
-        boundaryPage.items,
+      const pageMessages = mergeHubLocalAssistantMessages(
+        mergeHubUserMessageMetadata(
+          boundaryPage.items,
+          Array.isArray(localMessages) ? localMessages : []
+        ),
         Array.isArray(localMessages) ? localMessages : []
       );
       const nextOffset = Math.max(
@@ -801,7 +813,8 @@ export function createHub53AIBridge(input: HubBridgeInput) {
       await ensureKnownGatewaySession(sessionId);
       const afterSeq = readRPCAfterSeq(payload);
       await ensureCanonicalLedgerBackfill(sessionId);
-      return buildOpenClawSessionSnapshot(sessionId, listCanonicalLedgerEvents(sessionId), afterSeq);
+      const result = buildOpenClawSessionSnapshot(sessionId, listCanonicalLedgerEvents(sessionId), afterSeq);
+      return result;
     }
 
     if (request.action === "sessions.control") {
@@ -890,10 +903,13 @@ export function createHub53AIBridge(input: HubBridgeInput) {
   }
 
   async function listSessionEvents(sessionId: string): Promise<TimelineEvent[]> {
+    const lastSeq = getLastBackfillGatewaySeq(sessionId);
+    const t0 = Date.now();
     const [gatewayEvents, storedEvents] = await Promise.all([
-      input.gateway.listEvents(sessionId, 0),
+      input.gateway.listEvents(sessionId, lastSeq),
       input.callbacks.listSessionEvents?.(sessionId) ?? []
     ]);
+    const t1 = Date.now();
     const rawEvents = filterSyntheticToolPlaceholderThinkingEvents(
       filterSupersededHistoryThinkingEvents(
         dedupeTimelineEvents([...gatewayEvents, ...storedEvents])
@@ -912,35 +928,57 @@ export function createHub53AIBridge(input: HubBridgeInput) {
       gatewayCount: gatewayEvents.length,
       rawInputCount: rawEvents.length,
       canonicalCount: canonicalEvents.length,
-      storedCount: storedEvents.length,
-      syntheticCount: syntheticEventsBySession.get(sessionId)?.length ?? 0,
-      exposedCount: exposedEvents.length,
       rawOnlyHiddenCount,
-      gatewayTail: gatewayEvents.slice(-6).map(summarizeTimelineEventForTrace),
-      canonicalTail: canonicalEvents.slice(-6).map(summarizeTimelineEventForTrace),
-      storedTail: storedEvents.slice(-6).map(summarizeTimelineEventForTrace),
-      syntheticTail: (syntheticEventsBySession.get(sessionId) ?? []).slice(-6).map(summarizeTimelineEventForTrace),
-      exposedTail: exposedEvents.slice(-6).map(summarizeTimelineEventForTrace)
+      elapsed: t1 - t0
     }, input.config);
     return exposedEvents;
+  }
+
+  function getLastBackfillGatewaySeq(sessionId: string): number {
+    return lastBackfillGatewaySeqBySession.get(sessionId) ?? 0;
+  }
+
+  function setLastBackfillGatewaySeq(sessionId: string, seq: number): void {
+    if (seq > 0) {
+      lastBackfillGatewaySeqBySession.set(sessionId, seq);
+    }
   }
 
   async function ensureCanonicalLedgerBackfill(sessionId: string) {
     if (!sessionId) {
       return;
     }
-    const [gatewayEvents, storedEvents] = await Promise.all([
-      input.gateway.listEvents(sessionId, 0),
-      input.callbacks.listSessionEvents?.(sessionId) ?? []
-    ]);
-    const rawEvents = filterSyntheticToolPlaceholderThinkingEvents(
-      filterSupersededHistoryThinkingEvents(
-        dedupeTimelineEvents([...gatewayEvents, ...storedEvents])
-          .map(normalizeTimelineEventSegmentType)
-          .map(normalizeTimelineEventMessageSeq)
-      )
-    );
-    await ensureCanonicalLedgerBackfillFromEvents(sessionId, rawEvents);
+    const existingLock = backfillLockBySession.get(sessionId);
+    if (existingLock) {
+      return existingLock;
+    }
+    const lockPromise = (async () => {
+      const lastSeq = getLastBackfillGatewaySeq(sessionId);
+      const [gatewayEvents, storedEvents] = await Promise.all([
+        input.gateway.listEvents(sessionId, lastSeq),
+        input.callbacks.listSessionEvents?.(sessionId) ?? []
+      ]);
+      const maxGatewaySeq = gatewayEvents.reduce((max, e) => Math.max(max, (e as TimelineEvent & { seq?: number }).seq ?? 0), 0);
+      const rawEvents = filterSyntheticToolPlaceholderThinkingEvents(
+        filterSupersededHistoryThinkingEvents(
+          dedupeTimelineEvents([...gatewayEvents, ...storedEvents])
+            .map(normalizeTimelineEventSegmentType)
+            .map(normalizeTimelineEventMessageSeq)
+        )
+      );
+      await ensureCanonicalLedgerBackfillFromEvents(sessionId, rawEvents);
+      if (maxGatewaySeq > lastSeq) {
+        setLastBackfillGatewaySeq(sessionId, maxGatewaySeq);
+      }
+    })();
+    backfillLockBySession.set(sessionId, lockPromise);
+    try {
+      return lockPromise;
+    } finally {
+      if (backfillLockBySession.get(sessionId) === lockPromise) {
+        backfillLockBySession.delete(sessionId);
+      }
+    }
   }
 
   async function ensureCanonicalLedgerBackfillFromEvents(sessionId: string, events: TimelineEvent[]) {
@@ -2537,48 +2575,63 @@ export function createHub53AIBridge(input: HubBridgeInput) {
     let close: (() => void) | undefined;
     let sessionId = "";
     try {
-      const session = await resolveSession(message);
-      const preparedMessage = await prepareIncomingFilesWithPromptFallback(message);
-      const messageAttachments = await buildGatewayMessageAttachmentsWithPromptFallback(preparedMessage);
+      const [session, preparedMessage] = await Promise.all([
+        resolveSession(message),
+        prepareIncomingFilesWithPromptFallback(message)
+      ]);
+      const [messageAttachments, outputManifestPath] = await Promise.all([
+        buildGatewayMessageAttachmentsWithPromptFallback(preparedMessage),
+        Promise.resolve(resolveLocalOutputManifestPath({
+          stateDir: input.stateDir,
+          conversationId: session.id
+        })).then(async (path) => {
+          if (path) {
+            await mkdir(dirname(path), { recursive: true });
+          }
+          return path;
+        })
+      ]);
       const requestIdentity = message.clientMessageId || message.reqId;
       const turnId = buildOpenClawTimelineTurnId(session.id, requestIdentity);
-      const outputManifestPath = resolveLocalOutputManifestPath({
-        stateDir: input.stateDir,
-        conversationId: session.id
+      const workspaceDirs = resolveLocalOutputWorkspaceDirs({
+        config: input.config,
+        configPath: input.configPath,
+        stateDir: input.stateDir
       });
-      if (outputManifestPath) {
-        await mkdir(dirname(outputManifestPath), { recursive: true });
-      }
       const prompt = buildPrompt(preparedMessage, {
         includeRuntimeContext: true,
         outputManifest:
           outputManifestPath
-            ? {
-                path: outputManifestPath,
-                conversationId: session.id,
-                turnId,
-                activeRequestId: requestIdentity,
-                workspaceDirs: resolveLocalOutputWorkspaceDirs({
-                  config: input.config,
-                  configPath: input.configPath,
-                  stateDir: input.stateDir
-                })
-              }
+            ? { path: outputManifestPath, conversationId: session.id, turnId, activeRequestId: requestIdentity, workspaceDirs }
             : undefined
       });
       const displayContent = buildDisplayUserContent(preparedMessage);
       const userMessageMetadata = buildDisplayUserMessageMetadata(preparedMessage);
       sessionId = session.id;
-      await input.callbacks.onEnsureSessionStream(session.id);
-      await input.callbacks.onUserMessage({
-        id: `hub53ai-user-${message.msgId}`,
-        sessionId: session.id,
-        role: "user",
-        content: displayContent,
-        createdAt: new Date().toISOString(),
-        ...(Object.keys(userMessageMetadata).length ? { metadata: userMessageMetadata } : {})
-      });
-      await input.callbacks.onSessionStatus(session.id, "running");
+
+      const [localOutputSnapshot] = await Promise.all([
+        input.config.detectCreatedFiles === true
+          ? snapshotLocalOutputFiles({
+              config: input.config,
+              configPath: input.configPath,
+              stateDir: input.stateDir,
+              logger: input.logger
+            })
+          : Promise.resolve(undefined),
+        input.callbacks.onEnsureSessionStream(session.id)
+      ]);
+
+      await Promise.all([
+        input.callbacks.onUserMessage({
+          id: `hub53ai-user-${message.msgId}`,
+          sessionId: session.id,
+          role: "user",
+          content: displayContent,
+          createdAt: new Date().toISOString(),
+          ...(Object.keys(userMessageMetadata).length ? { metadata: userMessageMetadata } : {})
+        }),
+        input.callbacks.onSessionStatus(session.id, "running")
+      ]);
 
       const eventScope: GatewayEventScope = {
         eventBoundaryMs: Date.now(),
@@ -2603,21 +2656,27 @@ export function createHub53AIBridge(input: HubBridgeInput) {
         outputManifestPath,
         referencedLocalOutputPaths: new Set<string>(),
         writeOutputFilesByToolCallId: new Map<string, Hub53AIOutputFile[]>(),
-        localOutputSnapshot:
-          input.config.detectCreatedFiles === true
-            ? await snapshotLocalOutputFiles({
-                config: input.config,
-                configPath: input.configPath,
-                stateDir: input.stateDir,
-                logger: input.logger
-              })
-            : undefined,
+        localOutputSnapshot,
         hubUserId: preparedMessage.userId
       };
       trackActiveSessionRequest(sessionId, message.reqId, { message: preparedMessage, eventScope });
       const terminalPromise = waitForTerminalEvent(message.reqId);
       close = input.gateway.subscribe(session.id, input.callbacks.getLastEventSeq(session.id), {
         onEvent: (event) => {
+          if (event.kind === "assistant.delta") {
+            eventScope.deltaHandlingQueue = (eventScope.deltaHandlingQueue ?? Promise.resolve())
+              .catch(() => undefined)
+              .then(() => handleGatewayEvent(message, event, sessionId, eventScope))
+              .catch((error) => {
+                traceOpenClawLedger(input.logger, "event-delta-error", {
+                  reqId: message.reqId,
+                  sessionId,
+                  error: error instanceof Error ? error.message : String(error),
+                  event: summarizeTimelineEventForTrace(event)
+                }, input.config);
+              });
+            return;
+          }
           eventScope.eventHandlingQueue = (eventScope.eventHandlingQueue ?? Promise.resolve())
             .catch(() => undefined)
             .then(() => handleGatewayEvent(message, event, sessionId, eventScope))
@@ -2959,8 +3018,13 @@ export function createHub53AIBridge(input: HubBridgeInput) {
     );
     let gatewaySeq = 0;
     try {
-      const events = await input.gateway.listEvents(sessionId, 0);
+      const lastSeq = getLastBackfillGatewaySeq(sessionId);
+      const events = await input.gateway.listEvents(sessionId, lastSeq);
       gatewaySeq = events.reduce((maxSeq, event) => Math.max(maxSeq, event.seq || 0), 0);
+      const maxGatewaySeq = events.reduce((max, e) => Math.max(max, (e as TimelineEvent & { seq?: number }).seq ?? 0), 0);
+      if (maxGatewaySeq > lastSeq) {
+        setLastBackfillGatewaySeq(sessionId, maxGatewaySeq);
+      }
     } catch {
       gatewaySeq = 0;
     }
@@ -3108,6 +3172,7 @@ export function createHub53AIBridge(input: HubBridgeInput) {
     typedLiveLastResolvedAtMs?: number;
     typedLiveInFlight?: Promise<boolean>;
     eventHandlingQueue?: Promise<void>;
+    deltaHandlingQueue?: Promise<void>;
   };
 
   type ActiveSessionRequest = {
@@ -3193,34 +3258,33 @@ export function createHub53AIBridge(input: HubBridgeInput) {
     if (shouldAttachOpenClawTimeline(event)) {
       augmentPayloadWithEventMeta(event, eventScope);
     }
-    for (const path of extractReferencedLocalOutputPaths(event.payload, eventScope.localOutputSnapshot, {
-      config: input.config,
-      configPath: input.configPath,
-      stateDir: input.stateDir,
-      logger: input.logger
-    })) {
-      eventScope.referencedLocalOutputPaths.add(path);
+    if (event.kind !== "assistant.delta") {
+      for (const path of extractReferencedLocalOutputPaths(event.payload, eventScope.localOutputSnapshot, {
+        config: input.config,
+        configPath: input.configPath,
+        stateDir: input.stateDir,
+        logger: input.logger
+      })) {
+        eventScope.referencedLocalOutputPaths.add(path);
+      }
+      await sendOutputFilesForEvent(message.reqId, sessionId, event, eventScope);
+      await sendWriteToolOutputFilesForEvent(message.reqId, sessionId, event, eventScope);
     }
-    await sendOutputFilesForEvent(message.reqId, sessionId, event, eventScope);
-    await sendWriteToolOutputFilesForEvent(message.reqId, sessionId, event, eventScope);
 
     if (event.kind === "assistant.delta" || event.kind === "assistant.message") {
       if (isUntrustedRawOpenClawAnswerEvent(event)) {
-        traceOpenClawDuplicate(input.logger, "hub.reply.suppress_untrusted_answer", {
-          reqId: message.reqId,
-          sessionId,
-          event: summarizeTimelineEventForTrace(event)
-        }, input.config);
-        await maybeApplyTypedTranscriptLiveReplace({
-          sessionId,
-          sourceEvent: event,
-          eventScope,
-          reqId: message.reqId
-        });
         if (event.kind === "assistant.message") {
+          const replaced = await maybeApplyTypedTranscriptLiveReplace({
+            sessionId,
+            sourceEvent: event,
+            eventScope,
+            reqId: message.reqId
+          });
           await sendCreatedLocalOutputFiles(message.reqId, sessionId, eventScope);
+          if (replaced) {
+            return;
+          }
         }
-        return;
       }
       const content = String(event.payload?.content ?? "");
       const replaceReply = isReplyReplaceEvent(event);
@@ -3319,7 +3383,7 @@ export function createHub53AIBridge(input: HubBridgeInput) {
     }
 
     if (event.kind === "run.completed") {
-      await applyTypedTranscriptFinalReplace({
+      const typedFinalReplaced = await applyTypedTranscriptFinalReplace({
         sessionId,
         terminalEvent: event,
         eventScope,
@@ -3327,9 +3391,10 @@ export function createHub53AIBridge(input: HubBridgeInput) {
         sendToHub: true
       });
       await sendCreatedLocalOutputFiles(message.reqId, sessionId, eventScope);
+      const doneText = typedFinalReplaced ? "" : readCurrentOpenClawAnswerText(eventScope, message.reqId);
       await sendReply({
         reqId: message.reqId,
-        text: "",
+        text: doneText,
         status: "done",
         sessionId,
         eventKind: event.kind,
@@ -4826,6 +4891,13 @@ export function createHub53AIBridge(input: HubBridgeInput) {
     return "";
   }
 
+  function saveChatMapping(chatId: string, sessionId: string) {
+    if (state.mappings[chatId] !== sessionId) {
+      state.mappings[chatId] = sessionId;
+      persistStateSoon("chat mapping");
+    }
+  }
+
   async function resolveSession(message: Hub53AIIncomingMessage): Promise<GatewaySession> {
     const desiredTitle = buildHubSessionTitle(message);
     if (isOpenClawSessionId(message.chatId)) {
@@ -4834,14 +4906,23 @@ export function createHub53AIBridge(input: HubBridgeInput) {
       return session;
     }
 
+    const mappedSession = await getMappedSession(message.chatId);
+    if (mappedSession) {
+      const nextSession = await renamePlaceholderSessionIfNeeded(mappedSession, message, desiredTitle);
+      await input.callbacks.onSessionUpsert(nextSession);
+      return nextSession;
+    }
+
     const restoredSession = await restoreLatestHubSession(message.chatId, message.userName || message.userId);
     if (restoredSession) {
       const nextSession = await renamePlaceholderSessionIfNeeded(restoredSession, message, desiredTitle);
+      saveChatMapping(message.chatId, nextSession.id);
       await input.callbacks.onSessionUpsert(nextSession);
       return nextSession;
     }
 
     const session = await createSessionWithUniqueTitle(desiredTitle);
+    saveChatMapping(message.chatId, session.id);
     await input.callbacks.onSessionUpsert(session);
     return session;
   }
@@ -8507,147 +8588,4 @@ function numberOr(...values: unknown[]): number | undefined {
 
 function toRecord(value: unknown): Record<string, any> {
   return value && typeof value === "object" ? (value as Record<string, any>) : {};
-}
-
-function mergeHubUserMessageMetadata(messages: SessionMessage[], localMessages: SessionMessage[]): SessionMessage[] {
-  if (!messages.length || !localMessages.length) {
-    return messages;
-  }
-  const patches = localMessages.filter(isHubUserMessagePatch);
-  if (!patches.length) {
-    return messages;
-  }
-  const usedPatchIndexes = new Set<number>();
-  return messages.map((message) => {
-    if (message.role !== "user") {
-      return message;
-    }
-    const patchIndex = findHubUserMessagePatch(message, patches, usedPatchIndexes);
-    if (patchIndex < 0) {
-      return message;
-    }
-    usedPatchIndexes.add(patchIndex);
-    return applyHubUserMessagePatch(message, patches[patchIndex]!);
-  });
-}
-
-function isHubUserMessagePatch(message: SessionMessage): boolean {
-  if (message.role !== "user") {
-    return false;
-  }
-  const metadata = readHubMessageMetadata(message);
-  return Boolean(
-    stringOr(metadata.openclaw_client_message_id) ||
-      Array.isArray(metadata.openclaw_input_files) && metadata.openclaw_input_files.length > 0 ||
-      Object.keys(toRecord(metadata.openclaw_skill)).length > 0
-  );
-}
-
-function findHubUserMessagePatch(
-  message: SessionMessage,
-  patches: SessionMessage[],
-  usedPatchIndexes: Set<number>
-): number {
-  const clientMessageId = readHubClientMessageId(message);
-  if (clientMessageId) {
-    const byClientId = patches.findIndex(
-      (patch, index) => !usedPatchIndexes.has(index) && readHubClientMessageId(patch) === clientMessageId
-    );
-    if (byClientId >= 0) {
-      return byClientId;
-    }
-  }
-
-  const normalizedContent = normalizeHubUserMessageContentForMatch(message.content);
-  if (!normalizedContent) {
-    return -1;
-  }
-  const messageTime = Date.parse(message.createdAt || "");
-  let bestIndex = -1;
-  let bestDistance = Number.MAX_SAFE_INTEGER;
-  for (let index = 0; index < patches.length; index += 1) {
-    if (usedPatchIndexes.has(index)) {
-      continue;
-    }
-    const patch = patches[index]!;
-    if (normalizeHubUserMessageContentForMatch(patch.content) !== normalizedContent) {
-      continue;
-    }
-    const patchTime = Date.parse(patch.createdAt || "");
-    const distance = Number.isFinite(messageTime) && Number.isFinite(patchTime)
-      ? Math.abs(messageTime - patchTime)
-      : 0;
-    if (distance > 10 * 60 * 1000) {
-      continue;
-    }
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestIndex = index;
-    }
-  }
-  return bestIndex;
-}
-
-function applyHubUserMessagePatch(message: SessionMessage, patch: SessionMessage): SessionMessage {
-  const cleanPatchContent = stripHubRuntimeContextFromContent(patch.content);
-  return {
-    ...message,
-    content: cleanPatchContent || stripHubRuntimeContextFromContent(message.content),
-    metadata: {
-      ...toRecord(message.metadata),
-      ...readHubMessageMetadata(patch)
-    }
-  };
-}
-
-function readHubClientMessageId(message: SessionMessage): string {
-  const metadata = readHubMessageMetadata(message);
-  return stringOr(
-    metadata.openclaw_client_message_id,
-    metadata.client_message_id,
-    metadata.clientMessageId
-  );
-}
-
-function readHubMessageMetadata(message: SessionMessage): Record<string, any> {
-  return {
-    ...toRecord(message.payload),
-    ...toRecord(message.data),
-    ...toRecord(message.metadata),
-    ...toRecord(message.__openclaw)
-  };
-}
-
-function normalizeHubUserMessageContentForMatch(content: string): string {
-  return stripHubRuntimeContextFromContent(content).replace(/\s+/g, " ").trim();
-}
-
-function stripHubRuntimeContextFromContent(content: string): string {
-  const withoutSentinel = String(content || "").replace(
-    /<53aihub-openclaw-runtime-context>[\s\S]*?<\/53aihub-openclaw-runtime-context>/gi,
-    ""
-  );
-  const lines = withoutSentinel.split(/\r?\n/);
-  const kept: string[] = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] || "";
-    const lower = line.trim().toLowerCase();
-    if (lower === "local input files:" || lower === "remote input files:" || lower === "attached files:" || lower === "files:") {
-      while (index + 1 < lines.length && (lines[index + 1] || "").trim()) {
-        index += 1;
-      }
-      continue;
-    }
-    if (lower.startsWith("selected skill:")) {
-      continue;
-    }
-    if (lower.startsWith("use the installed local skill with this name")) {
-      continue;
-    }
-    if (/^@(?:\/|~\/)/.test(line.trim())) {
-      continue;
-    }
-    kept.push(line);
-  }
-  return kept.join("\n").trim();
 }

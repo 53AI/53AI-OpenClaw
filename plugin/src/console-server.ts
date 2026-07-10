@@ -68,6 +68,8 @@ type StatusSnapshot = {
 
 const RUNTIME_INFO_CACHE_TTL_MS = 5_000;
 const HEALTH_INFO_CACHE_TTL_MS = 5_000;
+const REMOTE_SYNC_INTERVAL_MS = 15_000;
+const REMOTE_SYNC_QUICK_PAGE_LIMIT = 500;
 
 export function createConsoleServer(input: CreateConsoleServerInput) {
   const hostRuntime = input.hostRuntime ?? readHostRuntimeInfo(input.configPath);
@@ -185,7 +187,7 @@ export function createConsoleServer(input: CreateConsoleServerInput) {
           broadcastStatus();
         }
       });
-    }, 5_000);
+    }, REMOTE_SYNC_INTERVAL_MS);
   }
 
   async function stop() {
@@ -501,10 +503,13 @@ export function createConsoleServer(input: CreateConsoleServerInput) {
     }
     remoteSyncInFlight = true;
     try {
-      const before = sessionListSignature(store.listSessions());
-      const remoteSessions = await input.gateway.listSessions(input.persistence.maxSessions);
       lastGatewayError = null;
-      await store.replaceSessions(remoteSessions);
+      const page = await input.gateway.listSessionPage({
+        limit: REMOTE_SYNC_QUICK_PAGE_LIMIT,
+        offset: 0
+      });
+      const before = sessionListSignature(store.listSessions());
+      await store.replaceSessions(page.sessions);
       return before !== sessionListSignature(store.listSessions());
     } catch (error) {
       lastGatewayError = error instanceof Error ? error : new Error(String(error));
@@ -548,7 +553,11 @@ export function createConsoleServer(input: CreateConsoleServerInput) {
     await store.upsertSession(session);
 
     const messages = await input.gateway.getSessionMessages(sessionId, 200);
-    const events = await input.gateway.listEvents(sessionId, 0);
+    const lastSeq = store.getLastEventSeq(sessionId);
+    let events = await input.gateway.listEvents(sessionId, lastSeq);
+    if (!events.length && lastSeq > 0) {
+      events = await input.gateway.listEvents(sessionId, 0);
+    }
     await store.replaceSessionDetail(sessionId, { messages, events });
     await reconcileDerivedAssistantMessage(sessionId);
   }
