@@ -5369,6 +5369,9 @@ export function createHub53AIBridge(input: HubBridgeInput) {
     if (existingSeq) {
       return existingSeq;
     }
+    if (typeof event.seq === "number" && Number.isFinite(event.seq) && event.seq > 0) {
+      return event.seq;
+    }
     return allocateNextOpenClawLedgerSeq(sessionId);
   }
 
